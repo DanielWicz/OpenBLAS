@@ -1,12 +1,10 @@
 /***************************************************************************
  * Pack A for AmpereOne BF16 GEMM (8 rows).
- * Input: A (M x K).
- * Output layout (per 8-row block):
- *  for kk in 0..K-1 step 4:
- *    store A[row0, kk..kk+3], A[row1, kk..kk+3] ... A[row7, kk..kk+3].
- *    (Total 32 bf16s per block).
- *  Tail K:
- *    store A[row0, kk], A[row1, kk] ... A[row7, kk].
+ * Case: A is Normal (No Transpose). M x K Column Major.
+ * We need to pack 8 rows of A.
+ * Row i is at: src + i + k * lda. (Stride lda).
+ * Output layout (Interleaved K=4):
+ *  Row0[0..3], Row1[0..3] ... Row7[0..3]
  ***************************************************************************/
 #include "common.h"
 
@@ -15,71 +13,56 @@ int CNAME(BLASLONG m, BLASLONG k, IFLOAT *src, BLASLONG lda, IFLOAT *dst) {
   BLASLONG rem = m & 7;
 
   for (BLASLONG ib = 0; ib < m8; ++ib) {
-    IFLOAT *row0 = src + ib * 8 * lda;
-    IFLOAT *row1 = row0 + lda;
-    IFLOAT *row2 = row1 + lda;
-    IFLOAT *row3 = row2 + lda;
-    IFLOAT *row4 = row3 + lda;
-    IFLOAT *row5 = row4 + lda;
-    IFLOAT *row6 = row5 + lda;
-    IFLOAT *row7 = row6 + lda;
+    IFLOAT *row_ptr = src + ib * 8;
     IFLOAT *out = dst + ib * (k * 8);
 
     BLASLONG kk = 0;
     for (; kk + 3 < k; kk += 4) {
+      IFLOAT *ptr0 = row_ptr + kk * lda;
+      IFLOAT *ptr1 = ptr0 + lda;
+      IFLOAT *ptr2 = ptr1 + lda;
+      IFLOAT *ptr3 = ptr2 + lda;
+
       // Row 0
-      out[0] = row0[kk+0]; out[1] = row0[kk+1]; out[2] = row0[kk+2]; out[3] = row0[kk+3];
+      out[0] = ptr0[0]; out[1] = ptr1[0]; out[2] = ptr2[0]; out[3] = ptr3[0];
       // Row 1
-      out[4] = row1[kk+0]; out[5] = row1[kk+1]; out[6] = row1[kk+2]; out[7] = row1[kk+3];
+      out[4] = ptr0[1]; out[5] = ptr1[1]; out[6] = ptr2[1]; out[7] = ptr3[1];
       // Row 2
-      out[8] = row2[kk+0]; out[9] = row2[kk+1]; out[10] = row2[kk+2]; out[11] = row2[kk+3];
+      out[8] = ptr0[2]; out[9] = ptr1[2]; out[10] = ptr2[2]; out[11] = ptr3[2];
       // Row 3
-      out[12] = row3[kk+0]; out[13] = row3[kk+1]; out[14] = row3[kk+2]; out[15] = row3[kk+3];
+      out[12] = ptr0[3]; out[13] = ptr1[3]; out[14] = ptr2[3]; out[15] = ptr3[3];
       // Row 4
-      out[16] = row4[kk+0]; out[17] = row4[kk+1]; out[18] = row4[kk+2]; out[19] = row4[kk+3];
+      out[16] = ptr0[4]; out[17] = ptr1[4]; out[18] = ptr2[4]; out[19] = ptr3[4];
       // Row 5
-      out[20] = row5[kk+0]; out[21] = row5[kk+1]; out[22] = row5[kk+2]; out[23] = row5[kk+3];
+      out[20] = ptr0[5]; out[21] = ptr1[5]; out[22] = ptr2[5]; out[23] = ptr3[5];
       // Row 6
-      out[24] = row6[kk+0]; out[25] = row6[kk+1]; out[26] = row6[kk+2]; out[27] = row6[kk+3];
+      out[24] = ptr0[6]; out[25] = ptr1[6]; out[26] = ptr2[6]; out[27] = ptr3[6];
       // Row 7
-      out[28] = row7[kk+0]; out[29] = row7[kk+1]; out[30] = row7[kk+2]; out[31] = row7[kk+3];
+      out[28] = ptr0[7]; out[29] = ptr1[7]; out[30] = ptr2[7]; out[31] = ptr3[7];
+      
       out += 32;
     }
     for (; kk < k; ++kk) {
-      out[0] = row0[kk];
-      out[1] = row1[kk];
-      out[2] = row2[kk];
-      out[3] = row3[kk];
-      out[4] = row4[kk];
-      out[5] = row5[kk];
-      out[6] = row6[kk];
-      out[7] = row7[kk];
+      IFLOAT *ptr = row_ptr + kk * lda;
+      out[0] = ptr[0];
+      out[1] = ptr[1];
+      out[2] = ptr[2];
+      out[3] = ptr[3];
+      out[4] = ptr[4];
+      out[5] = ptr[5];
+      out[6] = ptr[6];
+      out[7] = ptr[7];
       out += 8;
     }
   }
 
-  // Leftover rows are not handled by this routine usually?
-  // OpenBLAS usually handles the edge cases by calling smaller kernels or generic copy?
-  // But ONCOPY usually needs to handle the full range?
-  // No, the kernel will handle the main blocks. The copy function typically handles strict blocking?
-  // Wait, if rem > 0, we still need to pack them?
-  // Generic sgemm_ncopy handles remainders.
-  // But let's implement it for completeness if OpenBLAS calls it with odd M.
-  
   if (rem) {
       BLASLONG ib = m8 * 8;
       IFLOAT *out = dst + m8 * (k * 8);
-      // For remainder, we just pack them sequentially or as 1-row strips?
-      // The kernel remainder loop expects: 
-      // "remaining rows (<8) slow path".
-      // It accesses `packA + (i0 + ir) * k`.
-      // This implies for the tail, the kernel expects NON-interleaved, simple contiguous rows.
-      // So we just copy them row by row.
-      
       for (BLASLONG r = 0; r < rem; ++r) {
-          IFLOAT *row = src + (ib + r) * lda;
+          IFLOAT *row_ptr = src + (ib + r);
           for (BLASLONG kk = 0; kk < k; ++kk) {
-              *out++ = row[kk];
+              *out++ = *(row_ptr + kk * lda);
           }
       }
   }
