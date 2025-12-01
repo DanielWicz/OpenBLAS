@@ -49,6 +49,7 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
     for (BLASLONG ib = 0; ib < mb8; ++ib) {
       IFLOAT *pa = packA + ib * (k * 8);
       IFLOAT *pb = pb_block;
+      /* pc is only used in STORE_ROW macro; keep declaration in outer scope */
 #ifdef BGEMM
       bfloat16 *pc = C + (jb * 4) * ldc + ib * 8;
 #else
@@ -131,45 +132,39 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
       float32x4_t cvec;
       float out0, out1, out2, out3;
 
-      // helper macro
-#define STORE_ROW(acc01, acc23, idx)                              \
-      cvec = vpaddq_f32(acc01, acc23);                            \
-      cvec = vmulq_f32(cvec, alpha);                              \
-      out0 = vgetq_lane_f32(cvec, 0);                             \
-      out1 = vgetq_lane_f32(cvec, 1);                             \
-      out2 = vgetq_lane_f32(cvec, 2);                             \
-      out3 = vgetq_lane_f32(cvec, 3);                             \
-      {                                                           \
-        BLASLONG off = idx;                                       \
-        /* BGEMM writes bf16, SBGEMM writes fp32 */               \
-        /* C is column-major, ldc in elements */                  \
-        IFLOAT *dst_bf16;                                         \
-        float  *dst_f32;                                          \
-        (void)dst_bf16; (void)dst_f32;                            \
-        /* clang-format off */                                    \
-        /* store */                                               \
-        /* clang-format on  */                                    \
-        /* BGEMM path */                                          \
-        /* NB: IFLOAT == bfloat16 when BFLOAT16 defined */        \
-        /* SBGEMM path uses dst_f32 (float *) */                  \
-        /* to avoid aliasing issues. */                           \
-        /* */                                                     \
-        /* This block intentionally keeps both paths inline */    \
-        /* to minimize branching in the hot loop. */              \
-#ifdef BGEMM                                                     \
-        dst_bf16 = (IFLOAT *)(pc + off);                          \
-        dst_bf16[0]       = float_to_bf16(out0 + bf16_to_float(*(uint16_t*)&dst_bf16[0])); \
+#ifdef BGEMM
+#define STORE_ROW(acc01, acc23, idx)                               \
+      cvec = vpaddq_f32(acc01, acc23);                             \
+      cvec = vmulq_f32(cvec, alpha);                               \
+      out0 = vgetq_lane_f32(cvec, 0);                              \
+      out1 = vgetq_lane_f32(cvec, 1);                              \
+      out2 = vgetq_lane_f32(cvec, 2);                              \
+      out3 = vgetq_lane_f32(cvec, 3);                              \
+      {                                                            \
+        BLASLONG off = idx;                                        \
+        IFLOAT *dst_bf16 = (IFLOAT *)(pc + off);                   \
+        dst_bf16[0]       = float_to_bf16(out0 + bf16_to_float(*(uint16_t*)&dst_bf16[0]));   \
         dst_bf16[ldc]     = float_to_bf16(out1 + bf16_to_float(*(uint16_t*)&dst_bf16[ldc])); \
         dst_bf16[2 * ldc] = float_to_bf16(out2 + bf16_to_float(*(uint16_t*)&dst_bf16[2 * ldc])); \
         dst_bf16[3 * ldc] = float_to_bf16(out3 + bf16_to_float(*(uint16_t*)&dst_bf16[3 * ldc])); \
-#else                                                            \
-        dst_f32 = pc + off;                                      \
-        dst_f32[0]       += out0;                                 \
-        dst_f32[ldc]     += out1;                                 \
-        dst_f32[2 * ldc] += out2;                                 \
-        dst_f32[3 * ldc] += out3;                                 \
-#endif                                                           \
       }
+#else
+#define STORE_ROW(acc01, acc23, idx)                               \
+      cvec = vpaddq_f32(acc01, acc23);                             \
+      cvec = vmulq_f32(cvec, alpha);                               \
+      out0 = vgetq_lane_f32(cvec, 0);                              \
+      out1 = vgetq_lane_f32(cvec, 1);                              \
+      out2 = vgetq_lane_f32(cvec, 2);                              \
+      out3 = vgetq_lane_f32(cvec, 3);                              \
+      {                                                            \
+        BLASLONG off = idx;                                        \
+        float *dst_f32 = pc + off;                                 \
+        dst_f32[0]       += out0;                                  \
+        dst_f32[ldc]     += out1;                                  \
+        dst_f32[2 * ldc] += out2;                                  \
+        dst_f32[3 * ldc] += out3;                                  \
+      }
+#endif
 
       STORE_ROW(acc01_r0, acc23_r0, 0);
       STORE_ROW(acc01_r1, acc23_r1, 1);

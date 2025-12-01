@@ -64,20 +64,5 @@ int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG lda, IFLOAT *dst) {
   return 0;
 }
 
-/* Provide *_incopy aliases: the driver swaps pointers/strides for TransA=T,
- * and this layout still matches the kernel contract. */
-#define STR1(x) #x
-#define STR(x) STR1(x)
-#if defined(__ELF__)
-__attribute__((weak, alias(STR(CNAME))))
-int sbgemm_incopy(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG lda, IFLOAT *dst);
-__attribute__((weak, alias(STR(CNAME))))
-int bgemm_incopy(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG lda, IFLOAT *dst);
-#else
-int sbgemm_incopy(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG lda, IFLOAT *dst) {
-  return CNAME(m, n, src, lda, dst);
-}
-int bgemm_incopy(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG lda, IFLOAT *dst) {
-  return CNAME(m, n, src, lda, dst);
-}
-#endif
+/* No extra aliases: the build compiles this source twice, once with
+ * CNAME=sbgemm_incopy and once with CNAME=bgemm_incopy. */
