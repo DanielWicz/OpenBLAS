@@ -3,8 +3,9 @@
  * Layout expectations:
  *  - Packed B (pb): for each block of 4 columns, K is padded to 4.
  *    For kk in 0..K-1 step 4, store 4 bf16 from col0, then col1, col2, col3.
- *  - Packed A (pa): rows are contiguous, padded to 4 in K, no interleave.
- * Accumulators use NEON vbfdot (Armv8.6+).
+ *  - Packed A (pa): Interleaved 8 rows.
+ *    For kk in 0..K-1 step 4:
+ *      Row0[kk..kk+3], Row1[kk..kk+3] ... Row7[kk..kk+3]
  ***************************************************************************/
 
 #include "common.h"
@@ -70,38 +71,42 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
       float32x4_t acc23_r7 = vdupq_n_f32(0);
 
       BLASLONG kk = 0;
-      for (; kk + 3 < k; kk += 4, pb += 16) {
+      for (; kk + 3 < k; kk += 4, pb += 16, pa += 32) {
         bfloat16x8_t b01 = vld1q_bf16((const bfloat16_t *)pb);      // col0/1
         bfloat16x8_t b23 = vld1q_bf16(((const bfloat16_t *)pb) + 8);  // col2/3
 
-        // macro to process one row
-#define DOT_ROW(pa_row, acc01, acc23)                         \
+        // macro to process one row (pa_offset is 0, 4, 8...)
+#define DOT_ROW(pa_offset, acc01, acc23)                      \
         {                                                     \
-          bfloat16x4_t a4 = vld1_bf16((const bfloat16_t *)(pa_row + kk));           \
+          bfloat16x4_t a4 = vld1_bf16((const bfloat16_t *)(pa + pa_offset)); \
           bfloat16x8_t a8 = vcombine_bf16(a4, a4);            \
           acc01 = vbfdotq_f32(acc01, a8, b01);                \
           acc23 = vbfdotq_f32(acc23, a8, b23);                \
         }
 
-        DOT_ROW(pa,           acc01_r0, acc23_r0);
-        DOT_ROW(pa + k,       acc01_r1, acc23_r1);
-        DOT_ROW(pa + k * 2,   acc01_r2, acc23_r2);
-        DOT_ROW(pa + k * 3,   acc01_r3, acc23_r3);
-        DOT_ROW(pa + k * 4,   acc01_r4, acc23_r4);
-        DOT_ROW(pa + k * 5,   acc01_r5, acc23_r5);
-        DOT_ROW(pa + k * 6,   acc01_r6, acc23_r6);
-        DOT_ROW(pa + k * 7,   acc01_r7, acc23_r7);
+        DOT_ROW(0,  acc01_r0, acc23_r0);
+        DOT_ROW(4,  acc01_r1, acc23_r1);
+        DOT_ROW(8,  acc01_r2, acc23_r2);
+        DOT_ROW(12, acc01_r3, acc23_r3);
+        DOT_ROW(16, acc01_r4, acc23_r4);
+        DOT_ROW(20, acc01_r5, acc23_r5);
+        DOT_ROW(24, acc01_r6, acc23_r6);
+        DOT_ROW(28, acc01_r7, acc23_r7);
 #undef DOT_ROW
       }
       // tail k (k % 4)
-      for (; kk < k; ++kk, pb += 4) {
+      // For tail, ONCOPY packs Row0[k], Row1[k]... interleaved with stride 1? No stride 8?
+      // "out[0]=row0[k], out[1]=row1[k]... out+=8"
+      // So accessing Row i is at pa + i.
+      // And we advance pa by 8.
+      for (; kk < k; ++kk, pb += 4, pa += 8) {
         float b0 = bf16_to_float(pb[0]);
         float b1 = bf16_to_float(pb[1]);
         float b2 = bf16_to_float(pb[2]);
         float b3 = bf16_to_float(pb[3]);
-#define TAIL_FMA(acc01, acc23, aaddr)                         \
+#define TAIL_FMA(acc01, acc23, offset)                        \
         {                                                     \
-          float a_f = bf16_to_float(*(aaddr + kk));           \
+          float a_f = bf16_to_float(*(pa + offset));          \
           float tmp01[4];                                     \
           float tmp23[4];                                     \
           vst1q_f32(tmp01, acc01);                            \
@@ -111,14 +116,14 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
           acc01 = vld1q_f32(tmp01);                           \
           acc23 = vld1q_f32(tmp23);                           \
         }
-        TAIL_FMA(acc01_r0, acc23_r0, pa);
-        TAIL_FMA(acc01_r1, acc23_r1, pa + k);
-        TAIL_FMA(acc01_r2, acc23_r2, pa + k * 2);
-        TAIL_FMA(acc01_r3, acc23_r3, pa + k * 3);
-        TAIL_FMA(acc01_r4, acc23_r4, pa + k * 4);
-        TAIL_FMA(acc01_r5, acc23_r5, pa + k * 5);
-        TAIL_FMA(acc01_r6, acc23_r6, pa + k * 6);
-        TAIL_FMA(acc01_r7, acc23_r7, pa + k * 7);
+        TAIL_FMA(acc01_r0, acc23_r0, 0);
+        TAIL_FMA(acc01_r1, acc23_r1, 1);
+        TAIL_FMA(acc01_r2, acc23_r2, 2);
+        TAIL_FMA(acc01_r3, acc23_r3, 3);
+        TAIL_FMA(acc01_r4, acc23_r4, 4);
+        TAIL_FMA(acc01_r5, acc23_r5, 5);
+        TAIL_FMA(acc01_r6, acc23_r6, 6);
+        TAIL_FMA(acc01_r7, acc23_r7, 7);
 #undef TAIL_FMA
       }
 
