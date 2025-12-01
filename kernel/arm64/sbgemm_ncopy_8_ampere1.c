@@ -29,12 +29,25 @@ int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
     IFLOAT *col3 = col2 + ldb;
     IFLOAT *out = dst + jb * (k * 4);
 
-    for (BLASLONG kk = 0; kk < k; ++kk) {
+    for (BLASLONG kk = 0; kk < k; kk += 2) {
+      // Pack pairs of K for each column
+      // B(k, 0), B(k+1, 0)
       out[0] = col0[kk];
-      out[1] = col1[kk];
-      out[2] = col2[kk];
-      out[3] = col3[kk];
-      out += 4;
+      out[1] = (kk + 1 < k) ? col0[kk + 1] : 0;
+      
+      // B(k, 1), B(k+1, 1)
+      out[2] = col1[kk];
+      out[3] = (kk + 1 < k) ? col1[kk + 1] : 0;
+      
+      // B(k, 2), B(k+1, 2)
+      out[4] = col2[kk];
+      out[5] = (kk + 1 < k) ? col2[kk + 1] : 0;
+      
+      // B(k, 3), B(k+1, 3)
+      out[6] = col3[kk];
+      out[7] = (kk + 1 < k) ? col3[kk + 1] : 0;
+      
+      out += 8;
     }
   }
 

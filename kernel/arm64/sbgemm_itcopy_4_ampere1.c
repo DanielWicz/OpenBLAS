@@ -27,13 +27,27 @@ int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG lda, IFLOAT *dst) {
     // src is Col Major B^T.
     // B(k, j) is at src + k*lda + j.
     
-    for (BLASLONG kk = 0; kk < k; ++kk) {
+    for (BLASLONG kk = 0; kk < k; kk += 2) {
       IFLOAT *ptr = src + jb * 4 + kk * lda;
+      IFLOAT *ptr_next = ptr + lda;
+      
+      // B(k, 0), B(k+1, 0)
       out[0] = ptr[0];
-      out[1] = ptr[1];
-      out[2] = ptr[2];
-      out[3] = ptr[3];
-      out += 4;
+      out[1] = (kk + 1 < k) ? ptr_next[0] : 0;
+      
+      // B(k, 1), B(k+1, 1)
+      out[2] = ptr[1];
+      out[3] = (kk + 1 < k) ? ptr_next[1] : 0;
+      
+      // B(k, 2), B(k+1, 2)
+      out[4] = ptr[2];
+      out[5] = (kk + 1 < k) ? ptr_next[2] : 0;
+      
+      // B(k, 3), B(k+1, 3)
+      out[6] = ptr[3];
+      out[7] = (kk + 1 < k) ? ptr_next[3] : 0;
+      
+      out += 8;
     }
   }
 
