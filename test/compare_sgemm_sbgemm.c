@@ -127,20 +127,10 @@ main (int argc, char *argv[])
                 float16to32 (AA[k * j + l]) * float16to32 (BB[i + l * n]);
             }
           if (!is_close(CC[i * m + j], C[i * m + j], 0.01, 0.001)) {
-            printf("Mismatch SGEMM at m=%d n=%d k=%d TransA=%c TransB=%c i=%d j=%d: SGEMM=%f SBGEMM=%f\n", 
-                    (int)m, (int)n, (int)k, transA, transB, i, j, C[i*m+j], CC[i*m+j]);
-            if (m==2 && n==2 && k==2) {
-                printf("AA: %f %f %f %f\n", float16to32(AA[0]), float16to32(AA[1]), float16to32(AA[2]), float16to32(AA[3]));
-                printf("BB: %f %f %f %f\n", float16to32(BB[0]), float16to32(BB[1]), float16to32(BB[2]), float16to32(BB[3]));
-            }
             ret++;
-            goto fail;
           }
           if (!is_close(CC[i * m + j], DD[i * m + j], 0.001, 0.0001)) {
-             printf("Mismatch Ref at m=%d n=%d k=%d TransA=%c TransB=%c i=%d j=%d: Ref=%f SBGEMM=%f\n", 
-                    (int)m, (int)n, (int)k, transA, transB, i, j, DD[i*m+j], CC[i*m+j]);
             ret++;
-            goto fail;
           }
         }
     }
@@ -153,7 +143,6 @@ main (int argc, char *argv[])
     free(CC);
   }
 
-fail:
   if (ret != 0) {
     fprintf(stderr, "SBGEMM FAILURES: %d\n", ret);
     return 1;
