@@ -53,13 +53,13 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
       float32x4_t acc23_r7 = vdupq_n_f32(0);
 
       for (BLASLONG kk = 0; kk < k; kk += 4, pb += 16) {
-        bfloat16x8_t b01 = vld1q_bf16(pb);      // col0/1
-        bfloat16x8_t b23 = vld1q_bf16(pb + 8);  // col2/3
+        bfloat16x8_t b01 = vld1q_bf16((const bfloat16_t *)pb);      // col0/1
+        bfloat16x8_t b23 = vld1q_bf16((const bfloat16_t *)pb + 8);  // col2/3
 
         // macro to process one row
 #define DOT_ROW(pa_row, acc01, acc23)                         \
         {                                                     \
-          bfloat16x4_t a4 = vld1_bf16(pa_row + kk);           \
+          bfloat16x4_t a4 = vld1_bf16((const bfloat16_t *)(pa_row + kk));           \
           bfloat16x8_t a8 = vcombine_bf16(a4, a4);            \
           acc01 = vbfdotq_f32(acc01, a8, b01);                \
           acc23 = vbfdotq_f32(acc23, a8, b23);                \
@@ -77,7 +77,7 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
       }
 
       // Store accumulators (only lanes 0/1 carry cols 0/1 and 2/3)
-      float tmp[2];
+      float tmp[4];
 #define STORE_ROW(pc_row, acc01, acc23)                                     \
       {                                                                     \
         float32x2_t c01 = vget_low_f32(acc01);                              \
@@ -111,9 +111,9 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
         float32x4_t acc23 = vdupq_n_f32(0);
 
         for (BLASLONG kk = 0; kk < k; kk += 4, pb += 16) {
-          bfloat16x8_t b01 = vld1q_bf16(pb);
-          bfloat16x8_t b23 = vld1q_bf16(pb + 8);
-          bfloat16x4_t a4 = vld1_bf16(pa + kk);
+          bfloat16x8_t b01 = vld1q_bf16((const bfloat16_t *)pb);
+          bfloat16x8_t b23 = vld1q_bf16((const bfloat16_t *)pb + 8);
+          bfloat16x4_t a4 = vld1_bf16((const bfloat16_t *)(pa + kk));
           bfloat16x8_t a8 = vcombine_bf16(a4, a4);
           acc01 = vbfdotq_f32(acc01, a8, b01);
           acc23 = vbfdotq_f32(acc23, a8, b23);
