@@ -108,3 +108,17 @@ int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
 
   return 0;
 }
+
+/* AmpereOne uses this ONCOPY implementation for both the regular ONCOPY
+ * and the INCOPY entry point (SBGEMM_DEFAULT_UNROLL_M != SBGEMM_DEFAULT_UNROLL_N).
+ * Provide an alias so the exported symbol sbgemm_incopy is available. */
+#define STR1(x) #x
+#define STR(x) STR1(x)
+#if defined(__ELF__)
+__attribute__((weak, alias(STR(CNAME))))
+int sbgemm_incopy(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst);
+#else
+int sbgemm_incopy(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
+    return CNAME(m, n, src, ldb, dst);
+}
+#endif
