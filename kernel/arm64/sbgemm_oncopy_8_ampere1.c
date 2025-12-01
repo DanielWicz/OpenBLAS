@@ -10,9 +10,9 @@
  *   remaining k (<4): [col0, col1, col2, col3] for that k (4 bf16)
  *
  * Remaining columns (<4) are stored column-major, contiguous K values.
- * The same layout serves for packing A (INCOPY) and B (ONCOPY) because
- * the driver supplies appropriate pointers/lda for the requested transpose.
-***************************************************************************/
+ * The same layout serves both TransB=N and TransB=T; the caller passes
+ * pointers/lda that reflect the chosen transpose.
+ ***************************************************************************/
 #define BFLOAT16
 #define SBGEMM
 #include "common.h"
