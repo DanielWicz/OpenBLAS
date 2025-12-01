@@ -138,6 +138,11 @@ extern gotoblas_t gotoblas_A64FX;
 #else
 #define gotoblas_A64FX gotoblas_ARMV8
 #endif
+#ifdef DYN_AMPERE1
+extern gotoblas_t gotoblas_AMPERE1;
+#else
+#define gotoblas_AMPERE1 gotoblas_ARMV8
+#endif
 #else
 extern gotoblas_t  gotoblas_CORTEXA53;
 #define gotoblas_CORTEXA55 gotoblas_CORTEXA53
@@ -167,6 +172,7 @@ extern gotoblas_t  gotoblas_ARMV9SME;
 #define gotoblas_A64FX      gotoblas_ARMV8
 #define gotoblas_ARMV9SME   gotoblas_ARMV8
 #endif
+extern gotoblas_t  gotoblas_AMPERE1;
 
 extern gotoblas_t  gotoblas_THUNDERX3T110;
 #endif
@@ -176,7 +182,7 @@ extern void openblas_warning(int verbose, const char * msg);
 #define FALLBACK_VERBOSE 1
 #define NEOVERSEN1_FALLBACK "OpenBLAS : Your OS does not support SVE instructions. OpenBLAS is using Neoverse N1 kernels as a fallback, which may give poorer performance.\n"
 
-#define NUM_CORETYPES   19
+#define NUM_CORETYPES   20
 
 /*
  * In case asm/hwcap.h is outdated on the build system, make sure
@@ -216,6 +222,7 @@ static char *corename[] = {
   "armv8sve",
   "a64fx",
   "armv9sme",
+  "ampere1",
   "unknown"
 };
 
@@ -239,6 +246,7 @@ char *gotoblas_corename(void) {
   if (gotoblas == &gotoblas_ARMV8SVE)     return corename[16];
   if (gotoblas == &gotoblas_A64FX)        return corename[17];
   if (gotoblas == &gotoblas_ARMV9SME)     return corename[18];
+  if (gotoblas == &gotoblas_AMPERE1)      return corename[19];
   return corename[NUM_CORETYPES];
 }
 
@@ -277,6 +285,7 @@ static gotoblas_t *force_coretype(char *coretype) {
     case 16: return (&gotoblas_ARMV8SVE);
     case 17: return (&gotoblas_A64FX);
     case 18: return (&gotoblas_ARMV9SME);
+    case 19: return (&gotoblas_AMPERE1);
   }
   snprintf(message, 128, "Core not found: %s\n", coretype);
   openblas_warning(1, message);
@@ -452,7 +461,7 @@ static gotoblas_t *get_coretype(void) {
       {
 	case 0xac3:
 	case 0xac4:
-	  return &gotoblas_NEOVERSEN1;
+	  return &gotoblas_AMPERE1;
       }
       break;
     case 0x51: // Qualcomm

@@ -227,9 +227,9 @@ endif
 # Detect Ampere AmpereOne(ampere1,ampere1a) processors.
 ifeq ($(CORE), AMPERE1)
 ifeq (1, $(filter 1,$(GCCVERSIONGTEQ12) $(ISCLANG)))
-CCOMMON_OPT += -march=armv8.6-a+crypto+crc+fp16+sha3+rng
+CCOMMON_OPT += -march=armv8.6-a+crypto+crc+fp16+sha3+rng+dotprod+bf16
 ifneq ($(F_COMPILER), NAG)
-FCOMMON_OPT += -march=armv8.6-a+crypto+crc+fp16+sha3+rng
+FCOMMON_OPT += -march=armv8.6-a+crypto+crc+fp16+sha3+rng+dotprod+bf16
 endif
 endif
 endif

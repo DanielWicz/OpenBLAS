@@ -1,1 +1,5 @@
 include $(KERNELDIR)/KERNEL.NEOVERSEN1
+
+# AmpereOne-specific GEMM microkernels (prefetch retuned for 2MB L2)
+SGEMMKERNEL  = sgemm_kernel_ampere1_16x4.S
+DGEMMKERNEL  = dgemm_kernel_ampere1_8x4.S

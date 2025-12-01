@@ -53,9 +53,15 @@ USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define alpha0		s10
 #define alphaV0		v10.s[0]
 
+#ifndef A_PRE_SIZE
 #define A_PRE_SIZE	2560
+#endif
+#ifndef B_PRE_SIZE
 #define B_PRE_SIZE	224
+#endif
+#ifndef C_PRE_SIZE
 #define C_PRE_SIZE	160
+#endif
 
 
 // 00 origM
@@ -2046,4 +2052,3 @@ USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	ret
 
 	EPILOGUE
-
