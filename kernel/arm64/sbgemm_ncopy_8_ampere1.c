@@ -11,16 +11,13 @@
 #define BFLOAT16
 #define SBGEMM
 #include "common.h"
-#include <stdio.h>
 
 int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
-  static int debug_print = 0;
-  if (!debug_print) {
-      printf("NCOPY: IFLOAT=%d\n", (int)sizeof(IFLOAT));
-      debug_print = 1;
-  }
   // m is K (rows of B)
   // n is N (cols of B)
+  // dst layout: Interleaved columns. 
+  // For each K: B(k,0), B(k,1), B(k,2), B(k,3).
+  
   BLASLONG k = m;
   BLASLONG n4 = n >> 2;
   BLASLONG rem = n & 3;
@@ -32,48 +29,28 @@ int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
     IFLOAT *col3 = col2 + ldb;
     IFLOAT *out = dst + jb * (k * 4);
 
-    BLASLONG kk = 0;
-    for (; kk + 3 < k; kk += 4) {
-      out[0]  = col0[kk + 0];
-      out[1]  = col0[kk + 1];
-      out[2]  = col0[kk + 2];
-      out[3]  = col0[kk + 3];
-      out[4]  = col1[kk + 0];
-      out[5]  = col1[kk + 1];
-      out[6]  = col1[kk + 2];
-      out[7]  = col1[kk + 3];
-      out[8]  = col2[kk + 0];
-      out[9]  = col2[kk + 1];
-      out[10] = col2[kk + 2];
-      out[11] = col2[kk + 3];
-      out[12] = col3[kk + 0];
-      out[13] = col3[kk + 1];
-      out[14] = col3[kk + 2];
-      out[15] = col3[kk + 3];
-      out += 16;
-    }
-    for (; kk < k; ++kk) { // tail K
-      out[0]  = col0[kk];
-      out[1]  = col1[kk];
-      out[2]  = col2[kk];
-      out[3]  = col3[kk];
+    for (BLASLONG kk = 0; kk < k; ++kk) {
+      out[0] = col0[kk];
+      out[1] = col1[kk];
+      out[2] = col2[kk];
+      out[3] = col3[kk];
       out += 4;
     }
   }
 
-  // leftover columns
   if (rem) {
     BLASLONG jb = n4 * 4;
     IFLOAT *out = dst + n4 * (k * 4);
+    // For remainder cols, we still pack K-major but pad with zeros or garbage?
+    // The kernel handles remainder N via special loops? 
+    // OpenBLAS usually packs sequentially for remainder, or pads.
+    // My kernel 'rem_n' section iterates columns individually?
+    // This implies Remainder Packing should be Sequential Columns (not interleaved).
+    // Col0[0..k], Col1[0..k].
+    
     for (BLASLONG col = 0; col < rem; ++col) {
       IFLOAT *cptr = src + (jb + col) * ldb;
       for (BLASLONG kk = 0; kk < k; ++kk) {
-        // Debug print
-        if (m==2 && n==2 && k==2) {
-             uint16_t val = *(uint16_t*)&cptr[kk];
-             printf("NCOPY: col=%ld kk=%ld src_val=%04x addr=%p out_addr=%p\n", col, kk, val, &cptr[kk], out);
-             fflush(stdout);
-        }
         *out++ = cptr[kk];
       }
     }
