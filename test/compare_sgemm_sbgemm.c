@@ -47,6 +47,10 @@ main (int argc, char *argv[])
   char transA = 'N', transB = 'N';
   float alpha = 1.0, beta = 0.0;
 
+  // Allow environment variable to set max size for faster debug
+  char* env_size = getenv("TEST_SIZE");
+  if (env_size) loop = atoi(env_size);
+
   for (x = 0; x <= loop; x++)
   {
     if ((x > 100) && (x != SBGEMM_LARGEST)) continue;
@@ -107,26 +111,32 @@ main (int argc, char *argv[])
           for (l = 0; l < k; l++)
             if (transA == 'N' && transB == 'N')
             {
-              DD[i * m + j] +=
+              DD[i * m + j] += 
                 float16to32 (AA[l * m + j]) * float16to32 (BB[l + k * i]);
             } else if (transA == 'T' && transB == 'N')
             {
-              DD[i * m + j] +=
+              DD[i * m + j] += 
                 float16to32 (AA[k * j + l]) * float16to32 (BB[l + k * i]);
             } else if (transA == 'N' && transB == 'T')
             {
-              DD[i * m + j] +=
+              DD[i * m + j] += 
                 float16to32 (AA[l * m + j]) * float16to32 (BB[i + l * n]);
             } else if (transA == 'T' && transB == 'T')
             {
-              DD[i * m + j] +=
+              DD[i * m + j] += 
                 float16to32 (AA[k * j + l]) * float16to32 (BB[i + l * n]);
             }
           if (!is_close(CC[i * m + j], C[i * m + j], 0.01, 0.001)) {
+            printf("Mismatch SGEMM at m=%d n=%d k=%d TransA=%c TransB=%c i=%d j=%d: SGEMM=%f SBGEMM=%f\n", 
+                    (int)m, (int)n, (int)k, transA, transB, i, j, C[i*m+j], CC[i*m+j]);
             ret++;
+            goto fail;
           }
           if (!is_close(CC[i * m + j], DD[i * m + j], 0.001, 0.0001)) {
+             printf("Mismatch Ref at m=%d n=%d k=%d TransA=%c TransB=%c i=%d j=%d: Ref=%f SBGEMM=%f\n", 
+                    (int)m, (int)n, (int)k, transA, transB, i, j, DD[i*m+j], CC[i*m+j]);
             ret++;
+            goto fail;
           }
         }
     }
@@ -139,6 +149,7 @@ main (int argc, char *argv[])
     free(CC);
   }
 
+fail:
   if (ret != 0) {
     fprintf(stderr, "SBGEMM FAILURES: %d\n", ret);
     return 1;
