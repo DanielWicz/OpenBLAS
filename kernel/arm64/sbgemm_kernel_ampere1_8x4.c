@@ -100,13 +100,13 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
       // So accessing Row i is at pa + i.
       // And we advance pa by 8.
       for (; kk < k; ++kk, pb += 4, pa += 8) {
-        float b0 = bf16_to_float(pb[0]);
-        float b1 = bf16_to_float(pb[1]);
-        float b2 = bf16_to_float(pb[2]);
-        float b3 = bf16_to_float(pb[3]);
+        float b0 = bf16_to_float(*(uint16_t*)&pb[0]);
+        float b1 = bf16_to_float(*(uint16_t*)&pb[1]);
+        float b2 = bf16_to_float(*(uint16_t*)&pb[2]);
+        float b3 = bf16_to_float(*(uint16_t*)&pb[3]);
 #define TAIL_FMA(acc01, acc23, offset)                        \
         {                                                     \
-          float a_f = bf16_to_float(*(pa + offset));          \
+          float a_f = bf16_to_float(*(uint16_t*)(pa + offset));          \
           float tmp01[4];                                     \
           float tmp23[4];                                     \
           vst1q_f32(tmp01, acc01);                            \
@@ -139,10 +139,10 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
       out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
       out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
 #ifdef BGEMM
-      pc[0]             = float_to_bf16(out0 + bf16_to_float(pc[0]));
-      pc[ldc]           = float_to_bf16(out1 + bf16_to_float(pc[ldc]));
-      pc[2 * ldc]       = float_to_bf16(out2 + bf16_to_float(pc[2 * ldc]));
-      pc[3 * ldc]       = float_to_bf16(out3 + bf16_to_float(pc[3 * ldc]));
+      pc[0]             = float_to_bf16(out0 + bf16_to_float(*(uint16_t*)&pc[0]));
+      pc[ldc]           = float_to_bf16(out1 + bf16_to_float(*(uint16_t*)&pc[ldc]));
+      pc[2 * ldc]       = float_to_bf16(out2 + bf16_to_float(*(uint16_t*)&pc[2 * ldc]));
+      pc[3 * ldc]       = float_to_bf16(out3 + bf16_to_float(*(uint16_t*)&pc[3 * ldc]));
 #else
       pc[0]             += out0;
       pc[ldc]           += out1;
@@ -155,10 +155,10 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
       out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
       out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
 #ifdef BGEMM
-      pc[1]             = float_to_bf16(out0 + bf16_to_float(pc[1]));
-      pc[1 + ldc]       = float_to_bf16(out1 + bf16_to_float(pc[1 + ldc]));
-      pc[1 + 2 * ldc]   = float_to_bf16(out2 + bf16_to_float(pc[1 + 2 * ldc]));
-      pc[1 + 3 * ldc]   = float_to_bf16(out3 + bf16_to_float(pc[1 + 3 * ldc]));
+      pc[1]             = float_to_bf16(out0 + bf16_to_float(*(uint16_t*)&pc[1]));
+      pc[1 + ldc]       = float_to_bf16(out1 + bf16_to_float(*(uint16_t*)&pc[1 + ldc]));
+      pc[1 + 2 * ldc]   = float_to_bf16(out2 + bf16_to_float(*(uint16_t*)&pc[1 + 2 * ldc]));
+      pc[1 + 3 * ldc]   = float_to_bf16(out3 + bf16_to_float(*(uint16_t*)&pc[1 + 3 * ldc]));
 #else
       pc[1]             += out0;
       pc[1 + ldc]       += out1;
@@ -171,10 +171,10 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
       out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
       out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
 #ifdef BGEMM
-      pc[2]             = float_to_bf16(out0 + bf16_to_float(pc[2]));
-      pc[2 + ldc]       = float_to_bf16(out1 + bf16_to_float(pc[2 + ldc]));
-      pc[2 + 2 * ldc]   = float_to_bf16(out2 + bf16_to_float(pc[2 + 2 * ldc]));
-      pc[2 + 3 * ldc]   = float_to_bf16(out3 + bf16_to_float(pc[2 + 3 * ldc]));
+      pc[2]             = float_to_bf16(out0 + bf16_to_float(*(uint16_t*)&pc[2]));
+      pc[2 + ldc]       = float_to_bf16(out1 + bf16_to_float(*(uint16_t*)&pc[2 + ldc]));
+      pc[2 + 2 * ldc]   = float_to_bf16(out2 + bf16_to_float(*(uint16_t*)&pc[2 + 2 * ldc]));
+      pc[2 + 3 * ldc]   = float_to_bf16(out3 + bf16_to_float(*(uint16_t*)&pc[2 + 3 * ldc]));
 #else
       pc[2]             += out0;
       pc[2 + ldc]       += out1;
@@ -187,10 +187,10 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
       out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
       out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
 #ifdef BGEMM
-      pc[3]             = float_to_bf16(out0 + bf16_to_float(pc[3]));
-      pc[3 + ldc]       = float_to_bf16(out1 + bf16_to_float(pc[3 + ldc]));
-      pc[3 + 2 * ldc]   = float_to_bf16(out2 + bf16_to_float(pc[3 + 2 * ldc]));
-      pc[3 + 3 * ldc]   = float_to_bf16(out3 + bf16_to_float(pc[3 + 3 * ldc]));
+      pc[3]             = float_to_bf16(out0 + bf16_to_float(*(uint16_t*)&pc[3]));
+      pc[3 + ldc]       = float_to_bf16(out1 + bf16_to_float(*(uint16_t*)&pc[3 + ldc]));
+      pc[3 + 2 * ldc]   = float_to_bf16(out2 + bf16_to_float(*(uint16_t*)&pc[3 + 2 * ldc]));
+      pc[3 + 3 * ldc]   = float_to_bf16(out3 + bf16_to_float(*(uint16_t*)&pc[3 + 3 * ldc]));
 #else
       pc[3]             += out0;
       pc[3 + ldc]       += out1;
@@ -203,10 +203,10 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
       out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
       out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
 #ifdef BGEMM
-      pc[4]             = float_to_bf16(out0 + bf16_to_float(pc[4]));
-      pc[4 + ldc]       = float_to_bf16(out1 + bf16_to_float(pc[4 + ldc]));
-      pc[4 + 2 * ldc]   = float_to_bf16(out2 + bf16_to_float(pc[4 + 2 * ldc]));
-      pc[4 + 3 * ldc]   = float_to_bf16(out3 + bf16_to_float(pc[4 + 3 * ldc]));
+      pc[4]             = float_to_bf16(out0 + bf16_to_float(*(uint16_t*)&pc[4]));
+      pc[4 + ldc]       = float_to_bf16(out1 + bf16_to_float(*(uint16_t*)&pc[4 + ldc]));
+      pc[4 + 2 * ldc]   = float_to_bf16(out2 + bf16_to_float(*(uint16_t*)&pc[4 + 2 * ldc]));
+      pc[4 + 3 * ldc]   = float_to_bf16(out3 + bf16_to_float(*(uint16_t*)&pc[4 + 3 * ldc]));
 #else
       pc[4]             += out0;
       pc[4 + ldc]       += out1;
@@ -219,10 +219,10 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
       out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
       out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
 #ifdef BGEMM
-      pc[5]             = float_to_bf16(out0 + bf16_to_float(pc[5]));
-      pc[5 + ldc]       = float_to_bf16(out1 + bf16_to_float(pc[5 + ldc]));
-      pc[5 + 2 * ldc]   = float_to_bf16(out2 + bf16_to_float(pc[5 + 2 * ldc]));
-      pc[5 + 3 * ldc]   = float_to_bf16(out3 + bf16_to_float(pc[5 + 3 * ldc]));
+      pc[5]             = float_to_bf16(out0 + bf16_to_float(*(uint16_t*)&pc[5]));
+      pc[5 + ldc]       = float_to_bf16(out1 + bf16_to_float(*(uint16_t*)&pc[5 + ldc]));
+      pc[5 + 2 * ldc]   = float_to_bf16(out2 + bf16_to_float(*(uint16_t*)&pc[5 + 2 * ldc]));
+      pc[5 + 3 * ldc]   = float_to_bf16(out3 + bf16_to_float(*(uint16_t*)&pc[5 + 3 * ldc]));
 #else
       pc[5]             += out0;
       pc[5 + ldc]       += out1;
@@ -235,10 +235,10 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
       out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
       out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
 #ifdef BGEMM
-      pc[6]             = float_to_bf16(out0 + bf16_to_float(pc[6]));
-      pc[6 + ldc]       = float_to_bf16(out1 + bf16_to_float(pc[6 + ldc]));
-      pc[6 + 2 * ldc]   = float_to_bf16(out2 + bf16_to_float(pc[6 + 2 * ldc]));
-      pc[6 + 3 * ldc]   = float_to_bf16(out3 + bf16_to_float(pc[6 + 3 * ldc]));
+      pc[6]             = float_to_bf16(out0 + bf16_to_float(*(uint16_t*)&pc[6]));
+      pc[6 + ldc]       = float_to_bf16(out1 + bf16_to_float(*(uint16_t*)&pc[6 + ldc]));
+      pc[6 + 2 * ldc]   = float_to_bf16(out2 + bf16_to_float(*(uint16_t*)&pc[6 + 2 * ldc]));
+      pc[6 + 3 * ldc]   = float_to_bf16(out3 + bf16_to_float(*(uint16_t*)&pc[6 + 3 * ldc]));
 #else
       pc[6]             += out0;
       pc[6 + ldc]       += out1;
@@ -251,10 +251,10 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
       out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
       out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
 #ifdef BGEMM
-      pc[7]             = float_to_bf16(out0 + bf16_to_float(pc[7]));
-      pc[7 + ldc]       = float_to_bf16(out1 + bf16_to_float(pc[7 + ldc]));
-      pc[7 + 2 * ldc]   = float_to_bf16(out2 + bf16_to_float(pc[7 + 2 * ldc]));
-      pc[7 + 3 * ldc]   = float_to_bf16(out3 + bf16_to_float(pc[7 + 3 * ldc]));
+      pc[7]             = float_to_bf16(out0 + bf16_to_float(*(uint16_t*)&pc[7]));
+      pc[7 + ldc]       = float_to_bf16(out1 + bf16_to_float(*(uint16_t*)&pc[7 + ldc]));
+      pc[7 + 2 * ldc]   = float_to_bf16(out2 + bf16_to_float(*(uint16_t*)&pc[7 + 2 * ldc]));
+      pc[7 + 3 * ldc]   = float_to_bf16(out3 + bf16_to_float(*(uint16_t*)&pc[7 + 3 * ldc]));
 #else
       pc[7]             += out0;
       pc[7 + ldc]       += out1;
