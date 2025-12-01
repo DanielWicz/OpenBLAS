@@ -75,18 +75,26 @@ int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
       BLASLONG ib = m8 * 8;
       IFLOAT *out = dst + m8 * (k * 8);
       for (BLASLONG r = 0; r < rem; ++r) {
-          // Row (ib + r) is at src + (ib+r) + k*lda
-          // Wait. This is wrong.
-          // src points to A[0,0].
-          // Row i start is src + i.
-          // Element A[i, k] is at (src + i) + k*lda.
-          
           IFLOAT *row_ptr = src + (ib + r);
           for (BLASLONG kk = 0; kk < k; ++kk) {
-              *out++ = *(row_ptr + kk * lda);
+              IFLOAT val = *(row_ptr + kk * lda);
+              if (m==2 && n==2) {
+                  printf("ONCOPY: r=%ld kk=%ld lda=%ld src=%p addr=%p val=%f out=%p\n", 
+                         r, kk, lda, src, (row_ptr + kk * lda), bf16_to_float(*(uint16_t*)&val), out);
+                  fflush(stdout);
+              }
+              *out++ = val;
           }
       }
   }
 
   return 0;
 }
+
+// Helper to avoid implicit decl warning if common.h doesn't have it
+static inline float bf16_to_float_local(uint16_t h) {
+  union { uint32_t u; float f; } v;
+  v.u = ((uint32_t)h) << 16;
+  return v.f;
+}
+#define bf16_to_float bf16_to_float_local
