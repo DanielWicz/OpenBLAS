@@ -6,6 +6,7 @@
  * Output layout (Interleaved K=4):
  *  Row0[0..3], Row1[0..3] ...
  ***************************************************************************/
+#define BFLOAT16
 #define SBGEMM
 #include "common.h"
 

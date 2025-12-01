@@ -8,6 +8,7 @@
  * Output layout (Interleaved K=4):
  *  Col0[0..3], Col1[0..3] ...
  ***************************************************************************/
+#define BFLOAT16
 #define SBGEMM
 #include "common.h"
 
