@@ -383,15 +383,25 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
         }
       }
       
-      // Remainder rows (packed sequentially)
-      if (rem_m) {
+#include <stdio.h>
+
+// ... (inside function)
+
+    // remaining rows (<8) slow path
+    if (rem_m) {
          BLASLONG row_base = mb8 * 8;
          for (BLASLONG r = 0; r < rem_m; ++r) {
             float acc = 0;
             IFLOAT *pb_ptr = pb;
             for (BLASLONG kk = 0; kk < k; ++kk) {
-               acc += bf16_to_float(*pa++) * bf16_to_float(*pb_ptr++);
+               float av = bf16_to_float(*(uint16_t*)pa++);
+               float bv = bf16_to_float(*(uint16_t*)pb_ptr++);
+               acc += av * bv;
+               if (m==2 && n==2 && k==2) {
+                   printf("K_DEBUG: col=%ld r=%ld kk=%ld A=%f B=%f acc=%f\n", col, r, kk, av, bv, acc);
+               }
             }
+// ...
             BLASLONG row = row_base + r;
             BLASLONG j = nb4 * 4 + col;
 #ifdef BGEMM
