@@ -12,7 +12,6 @@
 #define SBGEMM
 #include "common.h"
 #include <arm_neon.h>
-#include <stdio.h>
 
 static inline float bf16_to_float(uint16_t h) {
   union {
@@ -80,7 +79,7 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
 
         // macro to process one row (pa_offset is 0, 4, 8...)
 #define DOT_ROW(pa_offset, acc01, acc23)                      \
-        {\
+        {                                                     \
           bfloat16x4_t a4 = vld1_bf16((const bfloat16_t *)(pa + pa_offset)); \
           bfloat16x8_t a8 = vcombine_bf16(a4, a4);            \
           acc01 = vbfdotq_f32(acc01, a8, b01);                \
@@ -104,7 +103,7 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
         float b2 = bf16_to_float(*(uint16_t*)&pb[2]);
         float b3 = bf16_to_float(*(uint16_t*)&pb[3]);
 #define TAIL_FMA(acc01, acc23, offset)                        \
-        {\
+        {                                                     \
           float a_f = bf16_to_float(*(uint16_t*)(pa + offset));          \
           float tmp01[4];                                     \
           float tmp23[4];                                     \
@@ -198,8 +197,8 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
         }
 
         float32x4_t cvec = vpaddq_f32(acc01, acc23);
-        cvec = vmulq_f32( cvec, alpha);
-        float out0 = vgetq_lane_f32( cvec, 0);
+        cvec = vmulq_f32(cvec, alpha);
+        float out0 = vgetq_lane_f32(cvec, 0);
         float out1 = vgetq_lane_f32( cvec, 1);
         float out2 = vgetq_lane_f32( cvec, 2);
         float out3 = vgetq_lane_f32( cvec, 3);
@@ -279,9 +278,6 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
                float av = bf16_to_float(*(uint16_t*)pa++);
                float bv = bf16_to_float(*(uint16_t*)pb_ptr++);
                acc += av * bv;
-               if (m==2 && n==2 && k==2) {
-                   printf("K: r=%ld kk=%ld pa=%p av=%f pb=%p bv=%f\n", r, kk, pa-1, av, pb_ptr-1, bv);
-               }
             }
             BLASLONG row = row_base + r;
             BLASLONG j = nb4 * 4 + col;
