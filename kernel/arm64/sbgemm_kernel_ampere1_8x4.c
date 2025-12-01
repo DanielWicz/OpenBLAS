@@ -19,6 +19,11 @@ static inline float bf16_to_float(uint16_t h) {
   return v.f;
 }
 
+static inline bfloat16 float_to_bf16(float x) {
+  union { float f; uint32_t u; } v = { x };
+  return (bfloat16)(v.u >> 16);
+}
+
 int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
           IFLOAT *packA, IFLOAT *packB, FLOAT *C, BLASLONG ldc) {
   const BLASLONG nb4 = n >> 2;          // blocks of 4 cols
@@ -26,14 +31,22 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
   const BLASLONG rem_m = m & 7;
   const BLASLONG rem_n = n & 3;
 
-  float32x4_t alpha = vdupq_n_f32(alpha_in);
+  float alpha_f = (float)alpha_in;
+#ifdef BGEMM
+  alpha_f = bf16_to_float((uint16_t)alpha_in);
+#endif
+  float32x4_t alpha = vdupq_n_f32(alpha_f);
 
   for (BLASLONG jb = 0; jb < nb4; ++jb) {
     IFLOAT *pb_block = packB + jb * (k * 4);
     for (BLASLONG ib = 0; ib < mb8; ++ib) {
       IFLOAT *pa = packA + ib * (k * 8);
       IFLOAT *pb = pb_block;
-      FLOAT *pc = C + (jb * 4) * ldc + ib * 8;
+#ifdef BGEMM
+      bfloat16 *pc = C + (jb * 4) * ldc + ib * 8;
+#else
+      float *pc = C + (jb * 4) * ldc + ib * 8;
+#endif
 
       float32x4_t acc01_r0 = vdupq_n_f32(0);
       float32x4_t acc23_r0 = vdupq_n_f32(0);
@@ -54,7 +67,7 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
 
       for (BLASLONG kk = 0; kk < k; kk += 4, pb += 16) {
         bfloat16x8_t b01 = vld1q_bf16((const bfloat16_t *)pb);      // col0/1
-        bfloat16x8_t b23 = vld1q_bf16((const bfloat16_t *)pb + 8);  // col2/3
+        bfloat16x8_t b23 = vld1q_bf16(((const bfloat16_t *)pb) + 8);  // col2/3
 
         // macro to process one row
 #define DOT_ROW(pa_row, acc01, acc23)                         \
@@ -77,16 +90,37 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
       }
 
       // Store accumulators (only lanes 0/1 carry cols 0/1 and 2/3)
-      float tmp[4];
+#ifdef BGEMM
 #define STORE_ROW(pc_row, acc01, acc23)                                     \
       {                                                                     \
         float32x2_t c01 = vget_low_f32(acc01);                              \
         float32x2_t c23 = vget_low_f32(acc23);                              \
         float32x4_t cvec = vmulq_f32(vcombine_f32(c01, c23), alpha);        \
-        vst1q_f32(tmp, cvec);                                               \
-        pc_row[0] += tmp[0]; pc_row[ldc] += tmp[1];                         \
-        pc_row[2 * ldc] += tmp[2]; pc_row[3 * ldc] += tmp[3];               \
+        float out0 = vgetq_lane_f32(cvec, 0);                               \
+        float out1 = vgetq_lane_f32(cvec, 1);                               \
+        float out2 = vgetq_lane_f32(cvec, 2);                               \
+        float out3 = vgetq_lane_f32(cvec, 3);                               \
+        pc_row[0]       = float_to_bf16(out0);                              \
+        pc_row[ldc]     = float_to_bf16(out1);                              \
+        pc_row[2 * ldc] = float_to_bf16(out2);                              \
+        pc_row[3 * ldc] = float_to_bf16(out3);                              \
       }
+#else
+#define STORE_ROW(pc_row, acc01, acc23)                                     \
+      {                                                                     \
+        float32x2_t c01 = vget_low_f32(acc01);                              \
+        float32x2_t c23 = vget_low_f32(acc23);                              \
+        float32x4_t cvec = vmulq_f32(vcombine_f32(c01, c23), alpha);        \
+        float tmp0 = vgetq_lane_f32(cvec, 0);                               \
+        float tmp1 = vgetq_lane_f32(cvec, 1);                               \
+        float tmp2 = vgetq_lane_f32(cvec, 2);                               \
+        float tmp3 = vgetq_lane_f32(cvec, 3);                               \
+        pc_row[0]       += tmp0;                                            \
+        pc_row[ldc]     += tmp1;                                            \
+        pc_row[2 * ldc] += tmp2;                                            \
+        pc_row[3 * ldc] += tmp3;                                            \
+      }
+#endif
 
       STORE_ROW(pc,           acc01_r0, acc23_r0);
       STORE_ROW(pc + 1,       acc01_r1, acc23_r1);
@@ -105,7 +139,11 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
       for (BLASLONG ir = 0; ir < rem_m; ++ir) {
         IFLOAT *pa = packA + (i0 + ir) * k;
         IFLOAT *pb = pb_block;
-        FLOAT *pc = C + (jb * 4) * ldc + (i0 + ir);
+#ifdef BGEMM
+        bfloat16 *pc = C + (jb * 4) * ldc + (i0 + ir);
+#else
+        float *pc = C + (jb * 4) * ldc + (i0 + ir);
+#endif
 
         float32x4_t acc01 = vdupq_n_f32(0);
         float32x4_t acc23 = vdupq_n_f32(0);
@@ -122,10 +160,21 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
         float32x2_t c01 = vget_low_f32(acc01);
         float32x2_t c23 = vget_low_f32(acc23);
         float32x4_t cvec = vmulq_f32(vcombine_f32(c01, c23), alpha);
-        float tmp4[4];
-        vst1q_f32(tmp4, cvec);
-        pc[0] += tmp4[0]; pc[ldc] += tmp4[1];
-        pc[2 * ldc] += tmp4[2]; pc[3 * ldc] += tmp4[3];
+        float out0 = vgetq_lane_f32(cvec, 0);
+        float out1 = vgetq_lane_f32(cvec, 1);
+        float out2 = vgetq_lane_f32(cvec, 2);
+        float out3 = vgetq_lane_f32(cvec, 3);
+#ifdef BGEMM
+        pc[0]       = float_to_bf16(out0);
+        pc[ldc]     = float_to_bf16(out1);
+        pc[2 * ldc] = float_to_bf16(out2);
+        pc[3 * ldc] = float_to_bf16(out3);
+#else
+        pc[0]       += out0;
+        pc[ldc]     += out1;
+        pc[2 * ldc] += out2;
+        pc[3 * ldc] += out3;
+#endif
       }
     }
   }
@@ -138,7 +187,11 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
       for (BLASLONG i = 0; i < m; ++i) {
         IFLOAT *pb = pb_block + col * k;
         IFLOAT *pa = packA + i * k;
-        FLOAT *pc = C + (jb + col) * ldc + i;
+#ifdef BGEMM
+        bfloat16 *pc = C + (jb + col) * ldc + i;
+#else
+        float *pc = C + (jb + col) * ldc + i;
+#endif
         float acc = 0.f;
         for (BLASLONG kk = 0; kk < k; kk += 4, pb += 4) {
           uint16_t *b16 = (uint16_t *)(pb);
@@ -148,7 +201,11 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
           acc += bf16_to_float(b16[2]) * bf16_to_float(a16[2]);
           acc += bf16_to_float(b16[3]) * bf16_to_float(a16[3]);
         }
-        pc[0] += acc * alpha_in;
+#ifdef BGEMM
+        pc[0] = float_to_bf16(acc * alpha_f);
+#else
+        pc[0] += acc * alpha_f;
+#endif
       }
     }
   }
