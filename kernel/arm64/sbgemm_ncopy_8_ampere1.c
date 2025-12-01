@@ -25,7 +25,31 @@ int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
   BLASLONG n4 = n >> 2;
   BLASLONG rem = n & 3;
 
+  // ... (main loop)
+
   for (BLASLONG jb = 0; jb < n4; ++jb) {
+    // ...
+  }
+
+  // leftover columns
+  if (rem) {
+    BLASLONG jb = n4 * 4;
+    IFLOAT *out = dst + n4 * (k * 4);
+    for (BLASLONG col = 0; col < rem; ++col) {
+      IFLOAT *cptr = src + (jb + col) * ldb;
+      for (BLASLONG kk = 0; kk < k; ++kk) {
+        // Debug print
+        if (m==2 && n==2 && k==2) {
+             uint16_t val = *(uint16_t*)&cptr[kk];
+             printf("NCOPY: col=%ld kk=%ld src_val=%04x addr=%p out_addr=%p\n", col, kk, val, &cptr[kk], out);
+             fflush(stdout);
+        }
+        *out++ = cptr[kk];
+      }
+    }
+  }
+  return 0;
+}
     IFLOAT *col0 = src + jb * 4 * ldb;
     IFLOAT *col1 = col0 + ldb;
     IFLOAT *col2 = col1 + ldb;
