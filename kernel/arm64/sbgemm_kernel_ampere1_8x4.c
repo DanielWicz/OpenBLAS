@@ -11,6 +11,7 @@
 #define BFLOAT16
 #define SBGEMM
 #include "common.h"
+#include <stdio.h>
 #include <arm_neon.h>
 
 static inline float bf16_to_float(uint16_t h) {
@@ -37,12 +38,26 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
   const BLASLONG mb8 = m >> 3;          // blocks of 8 rows
   const BLASLONG rem_m = m & 7;
   const BLASLONG rem_n = n & 3;
+  static int entry_print = 0;
+  static int rem_m_print = 0;
+  static int rem_n_print = 0;
+  static int k_tail_print = 0;
 
   float alpha_f = (float)alpha_in;
 #ifdef BGEMM
   alpha_f = bf16_to_float((uint16_t)alpha_in);
 #endif
   float32x4_t alpha = vdupq_n_f32(alpha_f);
+
+  if (!entry_print) {
+    printf("AMP1 sbgemm kernel entry m=%ld n=%ld k=%ld ldc=%ld nb4=%ld mb8=%ld rem_m=%ld rem_n=%ld alpha=%g packA=%p packB=%p C=%p\n",
+           m, n, k, ldc, nb4, mb8, rem_m, rem_n, (double)alpha_f, (void *)packA, (void *)packB, (void *)C);
+    entry_print = 1;
+  }
+  if ((k & 3) && !k_tail_print) {
+    printf("AMP1 sbgemm kernel K tail active (k mod 4 = %ld)\n", k & 3);
+    k_tail_print = 1;
+  }
 
   for (BLASLONG jb = 0; jb < nb4; ++jb) {
     IFLOAT *pb_block = packB + jb * (k * 4);
@@ -159,6 +174,10 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
 
     // remaining rows (<8) slow path
     if (rem_m) {
+      if (!rem_m_print) {
+        printf("AMP1 sbgemm kernel rem_m path used rem_m=%ld k=%ld mb8=%ld\n", rem_m, k, mb8);
+        rem_m_print = 1;
+      }
       BLASLONG i0 = mb8 * 8;
       for (BLASLONG ir = 0; ir < rem_m; ++ir) {
         IFLOAT *pa = packA + (i0 + ir) * k;
@@ -219,6 +238,10 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
 
   // remaining cols (<4)
   if (rem_n) {
+    if (!rem_n_print) {
+      printf("AMP1 sbgemm kernel rem_n path used rem_n=%ld k=%ld nb4=%ld\n", rem_n, k, nb4);
+      rem_n_print = 1;
+    }
     IFLOAT *pb_base = packB + nb4 * (k * 4);
     for (BLASLONG col = 0; col < rem_n; ++col) {
       IFLOAT *pb = pb_base + col * k;

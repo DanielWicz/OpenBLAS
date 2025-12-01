@@ -22,8 +22,13 @@ static inline float bf16_to_float_local(uint16_t h) {
 
 int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
   static int debug_print = 0;
+  static int tail_print = 0;
   if (!debug_print) {
-      printf("NCOPY (ncopy file) called m=%ld n=%ld ldb=%ld\n", m, n, ldb);
+      BLASLONG k = m;
+      BLASLONG n4 = n >> 2;
+      BLASLONG rem = n & 3;
+      printf("NCOPY (ncopy file) called m=%ld n=%ld ldb=%ld k=%ld n4=%ld rem_n=%ld dst=%p src=%p\n",
+             m, n, ldb, k, n4, rem, dst, src);
       debug_print = 1;
   }
   
@@ -66,6 +71,10 @@ int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
   }
 
   if (rem) {
+    if (!tail_print) {
+        printf("NCOPY tail path triggered rem_n=%ld k=%ld dst=%p src=%p\n", rem, k, dst, src);
+        tail_print = 1;
+    }
     BLASLONG jb = n4 * 4;
     IFLOAT *out = dst + n4 * (k * 4);
     for (BLASLONG col = 0; col < rem; ++col) {

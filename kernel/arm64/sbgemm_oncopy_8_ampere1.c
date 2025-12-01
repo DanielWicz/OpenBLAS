@@ -20,8 +20,13 @@ static inline float bf16_to_float_local(uint16_t h) {
 
 int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
   static int debug_print = 0;
+  static int tail_print = 0;
   if (!debug_print) {
-      printf("ONCOPY/INCOPY (oncopy file) called m=%ld n=%ld lda=%ld\n", m, n, ldb);
+      BLASLONG k = n;
+      BLASLONG m8 = m >> 3;
+      BLASLONG rem = m & 7;
+      printf("ONCOPY/INCOPY (oncopy file) called m=%ld n=%ld lda=%ld k=%ld m8=%ld rem_m=%ld dst=%p src=%p\n",
+             m, n, ldb, k, m8, rem, dst, src);
       debug_print = 1;
   }
   
@@ -84,6 +89,10 @@ int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
   if (rem) {
       BLASLONG ib = m8 * 8;
       IFLOAT *out = dst + m8 * (k * 8);
+      if (!tail_print) {
+          printf("ONCOPY tail path triggered rem_m=%ld k=%ld dst=%p src=%p\n", rem, k, dst, src);
+          tail_print = 1;
+      }
       for (BLASLONG r = 0; r < rem; ++r) {
           IFLOAT *row_ptr = src + (ib + r);
           for (BLASLONG kk = 0; kk < k; ++kk) {
