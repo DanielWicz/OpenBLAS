@@ -296,8 +296,8 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
           float tmp01[4], tmp23[4];
           vst1q_f32(tmp01, acc01);
           vst1q_f32(tmp23, acc23);
-          tmp01[0] += a_f * b0; tmp01[1] += a_f * b1;
-          tmp23[0] += a_f * b2; tmp23[1] += a_f * b3;
+          tmp01[0] += a_f * b0; tmp01[2] += a_f * b1;
+          tmp23[0] += a_f * b2; tmp23[2] += a_f * b3;
           acc01 = vld1q_f32(tmp01);
           acc23 = vld1q_f32(tmp23);
         }
