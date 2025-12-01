@@ -248,6 +248,7 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
       for (BLASLONG ib = 0; ib < mb8; ++ib) {
         float acc[8] = {0,0,0,0, 0,0,0,0};
         IFLOAT *pb_ptr = pb;
+        IFLOAT *pa = pa_base + ib * (k * 8);
         
         BLASLONG kk = 0;
         for (; kk + 3 < k; kk += 4) {
