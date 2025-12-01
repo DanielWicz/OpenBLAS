@@ -1,7 +1,9 @@
 /***************************************************************************
  * Pack B for AmpereOne BF16 GEMM (4 cols).
  * Case: B is Transposed. Input is N x K.
- * We want 4 cols of Op(B) -> 4 rows of Input.
+ * Arguments:
+ *   m: Number of rows of Op(B) -> K
+ *   n: Number of cols of Op(B) -> N
  * Input Row j is at: src + j + k * lda. (Stride lda).
  * Output layout (Interleaved K=4):
  *  Col0[0..3], Col1[0..3] ...
@@ -9,7 +11,10 @@
 #define SBGEMM
 #include "common.h"
 
-int CNAME(BLASLONG n, BLASLONG k, IFLOAT *src, BLASLONG lda, IFLOAT *dst) {
+int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG lda, IFLOAT *dst) {
+  // m is K
+  // n is N
+  BLASLONG k = m;
   BLASLONG n4 = n >> 2;
   BLASLONG rem = n & 3;
 

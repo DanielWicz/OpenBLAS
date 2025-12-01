@@ -1,6 +1,9 @@
 /***************************************************************************
  * Pack B for AmpereOne BF16 GEMM.
  * Input: B (K x N), column-major.
+ * Arguments:
+ *   m: Number of rows (K)
+ *   n: Number of columns (N)
  * Output layout (per 4-column block):
  *  for kk in 0..K-1 step 4:
  *    store B[kk:kk+3, col0], then col1, col2, col3  (16 bf16).
@@ -8,7 +11,10 @@
 #define SBGEMM
 #include "common.h"
 
-int CNAME(BLASLONG n, BLASLONG k, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
+int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
+  // m is K (rows of B)
+  // n is N (cols of B)
+  BLASLONG k = m;
   BLASLONG n4 = n >> 2;
   BLASLONG rem = n & 3;
 
@@ -52,15 +58,6 @@ int CNAME(BLASLONG n, BLASLONG k, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
   if (rem) {
     BLASLONG jb = n4 * 4;
     IFLOAT *out = dst + n4 * (k * 4);
-    // When N is not multiple of 4, the kernel will process `rem` columns.
-    // The kernel's rem_n loop expects `pb_block` to be contiguous.
-    // However, the generic interface often just packs these remainder columns
-    // sequentially.
-    // If `dst` here is just a contiguous buffer, we just pack the columns.
-    // But is there any padding?
-    // My kernel code: `IFLOAT *pb = pb_block + col * k;`
-    // This implies no padding between columns in the packed buffer for the remainder part.
-    
     for (BLASLONG col = 0; col < rem; ++col) {
       IFLOAT *cptr = src + (jb + col) * ldb;
       for (BLASLONG kk = 0; kk < k; ++kk) {
