@@ -11,6 +11,14 @@
 #include "common.h"
 #include <stdio.h>
 
+// Define helper first
+static inline float bf16_to_float_local(uint16_t h) {
+  union { uint32_t u; float f; } v;
+  v.u = ((uint32_t)h) << 16;
+  return v.f;
+}
+#define bf16_to_float bf16_to_float_local
+
 int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
   // OpenBLAS standard for COPY:
   // m = rows of matrix to be packed
@@ -19,7 +27,7 @@ int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
   // ldb = stride of source (lda)
   // dst = dest buffer
   
-  // For ONCOPY (Normal A): m=M, n=K.
+  // For ONCOPY (Normal A): m=M, n=K. 
   
   BLASLONG k = n;
   BLASLONG lda = ldb;
@@ -90,11 +98,3 @@ int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
 
   return 0;
 }
-
-// Helper to avoid implicit decl warning if common.h doesn't have it
-static inline float bf16_to_float_local(uint16_t h) {
-  union { uint32_t u; float f; } v;
-  v.u = ((uint32_t)h) << 16;
-  return v.f;
-}
-#define bf16_to_float bf16_to_float_local
