@@ -5,7 +5,7 @@
  * Row i is at: src + i + k * lda. (Stride lda).
  * Output layout (Interleaved K=4):
  *  Row0[0..3], Row1[0..3] ... Row7[0..3]
- ***************************************************************************/
+ ***************************************************************************/ 
 #define BFLOAT16
 #define SBGEMM
 #include "common.h"
@@ -17,6 +17,13 @@ int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
       printf("ONCOPY called m=%ld n=%ld\n", m, n);
       debug_print = 1;
   }
+  
+  // Correct argument mapping for ONCOPY (A is M x K):
+  // OpenBLAS passes (m, k, ...) to ONCOPY.
+  // So 'm' is M, 'n' is K. 'ldb' is actually lda.
+  BLASLONG k = n;
+  BLASLONG lda = ldb;
+  
   BLASLONG m8 = m >> 3;
   BLASLONG rem = m & 7;
 
