@@ -13,19 +13,19 @@ int CNAME(BLASLONG m, BLASLONG k, IFLOAT *src, BLASLONG lda, IFLOAT *dst) {
   BLASLONG rem = m & 7;
 
   for (BLASLONG ib = 0; ib < m8; ++ib) {
-    IFLOAT *row_ptr = src + ib * 8;
+    IFLOAT *block_base = src + ib * 8;
     IFLOAT *out = dst + ib * (k * 8);
 
     BLASLONG kk = 0;
     for (; kk + 3 < k; kk += 4) {
-      IFLOAT *ptr0 = row_ptr + kk * lda;
+      IFLOAT *ptr0 = block_base + kk * lda;
       IFLOAT *ptr1 = ptr0 + lda;
       IFLOAT *ptr2 = ptr1 + lda;
       IFLOAT *ptr3 = ptr2 + lda;
 
-      // Row 0
+      // Row 0 (offset 0)
       out[0] = ptr0[0]; out[1] = ptr1[0]; out[2] = ptr2[0]; out[3] = ptr3[0];
-      // Row 1
+      // Row 1 (offset 1)
       out[4] = ptr0[1]; out[5] = ptr1[1]; out[6] = ptr2[1]; out[7] = ptr3[1];
       // Row 2
       out[8] = ptr0[2]; out[9] = ptr1[2]; out[10] = ptr2[2]; out[11] = ptr3[2];
@@ -43,7 +43,7 @@ int CNAME(BLASLONG m, BLASLONG k, IFLOAT *src, BLASLONG lda, IFLOAT *dst) {
       out += 32;
     }
     for (; kk < k; ++kk) {
-      IFLOAT *ptr = row_ptr + kk * lda;
+      IFLOAT *ptr = block_base + kk * lda;
       out[0] = ptr[0];
       out[1] = ptr[1];
       out[2] = ptr[2];
@@ -60,6 +60,7 @@ int CNAME(BLASLONG m, BLASLONG k, IFLOAT *src, BLASLONG lda, IFLOAT *dst) {
       BLASLONG ib = m8 * 8;
       IFLOAT *out = dst + m8 * (k * 8);
       for (BLASLONG r = 0; r < rem; ++r) {
+          // Row (ib + r) is at src + (ib+r) + k*lda
           IFLOAT *row_ptr = src + (ib + r);
           for (BLASLONG kk = 0; kk < k; ++kk) {
               *out++ = *(row_ptr + kk * lda);
