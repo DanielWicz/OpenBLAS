@@ -9,8 +9,14 @@
 #define BFLOAT16
 #define SBGEMM
 #include "common.h"
+#include <stdio.h>
 
-int CNAME(BLASLONG m, BLASLONG k, IFLOAT *src, BLASLONG lda, IFLOAT *dst) {
+int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
+  static int debug_print = 0;
+  if (!debug_print) {
+      printf("ONCOPY called m=%ld n=%ld\n", m, n);
+      debug_print = 1;
+  }
   BLASLONG m8 = m >> 3;
   BLASLONG rem = m & 7;
 

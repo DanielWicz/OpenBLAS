@@ -11,8 +11,14 @@
 #define BFLOAT16
 #define SBGEMM
 #include "common.h"
+#include <stdio.h>
 
 int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG lda, IFLOAT *dst) {
+  static int debug_print = 0;
+  if (!debug_print) {
+      printf("ITCOPY called m=%ld n=%ld\n", m, n);
+      debug_print = 1;
+  }
   // m is K
   // n is N
   BLASLONG k = m;
