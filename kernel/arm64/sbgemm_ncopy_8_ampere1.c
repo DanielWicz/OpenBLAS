@@ -51,12 +51,20 @@ int CNAME(BLASLONG n, BLASLONG k, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
   if (rem) {
     BLASLONG jb = n4 * 4;
     IFLOAT *out = dst + n4 * (k * 4);
+    // When N is not multiple of 4, the kernel will process `rem` columns.
+    // The kernel's rem_n loop expects `pb_block` to be contiguous.
+    // However, the generic interface often just packs these remainder columns
+    // sequentially.
+    // If `dst` here is just a contiguous buffer, we just pack the columns.
+    // But is there any padding?
+    // My kernel code: `IFLOAT *pb = pb_block + col * k;`
+    // This implies no padding between columns in the packed buffer for the remainder part.
+    
     for (BLASLONG col = 0; col < rem; ++col) {
       IFLOAT *cptr = src + (jb + col) * ldb;
       for (BLASLONG kk = 0; kk < k; ++kk) {
         *out++ = cptr[kk];
       }
-      // pad to keep alignment of next cols (not strictly needed)
     }
   }
   return 0;
