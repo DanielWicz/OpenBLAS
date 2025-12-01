@@ -8,8 +8,6 @@
  *      Row0[kk..kk+3], Row1[kk..kk+3] ... Row7[kk..kk+3]
  ***************************************************************************/
 
-#undef DOUBLE
-#undef COMPLEX
 #define BFLOAT16
 #define SBGEMM
 #include "common.h"
@@ -82,7 +80,7 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
 
         // macro to process one row (pa_offset is 0, 4, 8...)
 #define DOT_ROW(pa_offset, acc01, acc23)                      \
-        {                                                     \
+        {\
           bfloat16x4_t a4 = vld1_bf16((const bfloat16_t *)(pa + pa_offset)); \
           bfloat16x8_t a8 = vcombine_bf16(a4, a4);            \
           acc01 = vbfdotq_f32(acc01, a8, b01);                \
@@ -99,18 +97,14 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
         DOT_ROW(28, acc01_r7, acc23_r7);
 #undef DOT_ROW
       }
-      // tail k (k % 4)
-      // For tail, ONCOPY packs Row0[k], Row1[k]... interleaved with stride 1? No stride 8?
-      // "out[0]=row0[k], out[1]=row1[k]... out+=8"
-      // So accessing Row i is at pa + i.
-      // And we advance pa by 8.
+      
       for (; kk < k; ++kk, pb += 4, pa += 8) {
         float b0 = bf16_to_float(*(uint16_t*)&pb[0]);
         float b1 = bf16_to_float(*(uint16_t*)&pb[1]);
         float b2 = bf16_to_float(*(uint16_t*)&pb[2]);
         float b3 = bf16_to_float(*(uint16_t*)&pb[3]);
 #define TAIL_FMA(acc01, acc23, offset)                        \
-        {                                                     \
+        {\
           float a_f = bf16_to_float(*(uint16_t*)(pa + offset));          \
           float tmp01[4];                                     \
           float tmp23[4];                                     \
@@ -134,138 +128,34 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
 #undef TAIL_FMA
       }
 
-      // Store accumulators (only lanes 0/1 carry cols 0/1 and 2/3)
+      // Store accumulators
       float32x4_t cvec;
       float out0, out1, out2, out3;
 
-      // row 0..7
-      cvec = vpaddq_f32(acc01_r0, acc23_r0);
-      cvec = vmulq_f32(cvec, alpha);
-      out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
-      out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
-#ifdef BGEMM
-      pc[0]             = float_to_bf16(out0 + bf16_to_float(*(uint16_t*)&pc[0]));
-      pc[ldc]           = float_to_bf16(out1 + bf16_to_float(*(uint16_t*)&pc[ldc]));
-      pc[2 * ldc]       = float_to_bf16(out2 + bf16_to_float(*(uint16_t*)&pc[2 * ldc]));
-      pc[3 * ldc]       = float_to_bf16(out3 + bf16_to_float(*(uint16_t*)&pc[3 * ldc]));
-#else
-      pc[0]             += out0;
-      pc[ldc]           += out1;
-      pc[2 * ldc]       += out2;
-      pc[3 * ldc]       += out3;
-#endif
+      // helper macro
+#define STORE_ROW(acc01, acc23, idx) \
+      cvec = vpaddq_f32(acc01, acc23); \
+      cvec = vmulq_f32( cvec, alpha); \
+      out0 = vgetq_lane_f32( cvec, 0); out1 = vgetq_lane_f32( cvec, 1); \
+      out2 = vgetq_lane_f32( cvec, 2); out3 = vgetq_lane_f32( cvec, 3); \
+      { \
+        BLASLONG off = idx; \
+        IFLOAT *dst = (IFLOAT*)(pc + off); \
+        dst[0]             = float_to_bf16(out0 + bf16_to_float(*(uint16_t*)&dst[0])); \
+        dst[ldc]           = float_to_bf16(out1 + bf16_to_float(*(uint16_t*)&dst[ldc])); \
+        dst[2 * ldc]       = float_to_bf16(out2 + bf16_to_float(*(uint16_t*)&dst[2 * ldc])); \
+        dst[3 * ldc]       = float_to_bf16(out3 + bf16_to_float(*(uint16_t*)&dst[3 * ldc])); \
+      }
 
-      cvec = vpaddq_f32(acc01_r1, acc23_r1);
-      cvec = vmulq_f32(cvec, alpha);
-      out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
-      out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
-#ifdef BGEMM
-      pc[1]             = float_to_bf16(out0 + bf16_to_float(*(uint16_t*)&pc[1]));
-      pc[1 + ldc]       = float_to_bf16(out1 + bf16_to_float(*(uint16_t*)&pc[1 + ldc]));
-      pc[1 + 2 * ldc]   = float_to_bf16(out2 + bf16_to_float(*(uint16_t*)&pc[1 + 2 * ldc]));
-      pc[1 + 3 * ldc]   = float_to_bf16(out3 + bf16_to_float(*(uint16_t*)&pc[1 + 3 * ldc]));
-#else
-      pc[1]             += out0;
-      pc[1 + ldc]       += out1;
-      pc[1 + 2 * ldc]   += out2;
-      pc[1 + 3 * ldc]   += out3;
-#endif
-
-      cvec = vpaddq_f32(acc01_r2, acc23_r2);
-      cvec = vmulq_f32(cvec, alpha);
-      out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
-      out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
-#ifdef BGEMM
-      pc[2]             = float_to_bf16(out0 + bf16_to_float(*(uint16_t*)&pc[2]));
-      pc[2 + ldc]       = float_to_bf16(out1 + bf16_to_float(*(uint16_t*)&pc[2 + ldc]));
-      pc[2 + 2 * ldc]   = float_to_bf16(out2 + bf16_to_float(*(uint16_t*)&pc[2 + 2 * ldc]));
-      pc[2 + 3 * ldc]   = float_to_bf16(out3 + bf16_to_float(*(uint16_t*)&pc[2 + 3 * ldc]));
-#else
-      pc[2]             += out0;
-      pc[2 + ldc]       += out1;
-      pc[2 + 2 * ldc]   += out2;
-      pc[2 + 3 * ldc]   += out3;
-#endif
-
-      cvec = vpaddq_f32(acc01_r3, acc23_r3);
-      cvec = vmulq_f32(cvec, alpha);
-      out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
-      out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
-#ifdef BGEMM
-      pc[3]             = float_to_bf16(out0 + bf16_to_float(*(uint16_t*)&pc[3]));
-      pc[3 + ldc]       = float_to_bf16(out1 + bf16_to_float(*(uint16_t*)&pc[3 + ldc]));
-      pc[3 + 2 * ldc]   = float_to_bf16(out2 + bf16_to_float(*(uint16_t*)&pc[3 + 2 * ldc]));
-      pc[3 + 3 * ldc]   = float_to_bf16(out3 + bf16_to_float(*(uint16_t*)&pc[3 + 3 * ldc]));
-#else
-      pc[3]             += out0;
-      pc[3 + ldc]       += out1;
-      pc[3 + 2 * ldc]   += out2;
-      pc[3 + 3 * ldc]   += out3;
-#endif
-
-      cvec = vpaddq_f32(acc01_r4, acc23_r4);
-      cvec = vmulq_f32(cvec, alpha);
-      out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
-      out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
-#ifdef BGEMM
-      pc[4]             = float_to_bf16(out0 + bf16_to_float(*(uint16_t*)&pc[4]));
-      pc[4 + ldc]       = float_to_bf16(out1 + bf16_to_float(*(uint16_t*)&pc[4 + ldc]));
-      pc[4 + 2 * ldc]   = float_to_bf16(out2 + bf16_to_float(*(uint16_t*)&pc[4 + 2 * ldc]));
-      pc[4 + 3 * ldc]   = float_to_bf16(out3 + bf16_to_float(*(uint16_t*)&pc[4 + 3 * ldc]));
-#else
-      pc[4]             += out0;
-      pc[4 + ldc]       += out1;
-      pc[4 + 2 * ldc]   += out2;
-      pc[4 + 3 * ldc]   += out3;
-#endif
-
-      cvec = vpaddq_f32(acc01_r5, acc23_r5);
-      cvec = vmulq_f32(cvec, alpha);
-      out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
-      out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
-#ifdef BGEMM
-      pc[5]             = float_to_bf16(out0 + bf16_to_float(*(uint16_t*)&pc[5]));
-      pc[5 + ldc]       = float_to_bf16(out1 + bf16_to_float(*(uint16_t*)&pc[5 + ldc]));
-      pc[5 + 2 * ldc]   = float_to_bf16(out2 + bf16_to_float(*(uint16_t*)&pc[5 + 2 * ldc]));
-      pc[5 + 3 * ldc]   = float_to_bf16(out3 + bf16_to_float(*(uint16_t*)&pc[5 + 3 * ldc]));
-#else
-      pc[5]             += out0;
-      pc[5 + ldc]       += out1;
-      pc[5 + 2 * ldc]   += out2;
-      pc[5 + 3 * ldc]   += out3;
-#endif
-
-      cvec = vpaddq_f32(acc01_r6, acc23_r6);
-      cvec = vmulq_f32(cvec, alpha);
-      out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
-      out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
-#ifdef BGEMM
-      pc[6]             = float_to_bf16(out0 + bf16_to_float(*(uint16_t*)&pc[6]));
-      pc[6 + ldc]       = float_to_bf16(out1 + bf16_to_float(*(uint16_t*)&pc[6 + ldc]));
-      pc[6 + 2 * ldc]   = float_to_bf16(out2 + bf16_to_float(*(uint16_t*)&pc[6 + 2 * ldc]));
-      pc[6 + 3 * ldc]   = float_to_bf16(out3 + bf16_to_float(*(uint16_t*)&pc[6 + 3 * ldc]));
-#else
-      pc[6]             += out0;
-      pc[6 + ldc]       += out1;
-      pc[6 + 2 * ldc]   += out2;
-      pc[6 + 3 * ldc]   += out3;
-#endif
-
-      cvec = vpaddq_f32(acc01_r7, acc23_r7);
-      cvec = vmulq_f32(cvec, alpha);
-      out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
-      out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
-#ifdef BGEMM
-      pc[7]             = float_to_bf16(out0 + bf16_to_float(*(uint16_t*)&pc[7]));
-      pc[7 + ldc]       = float_to_bf16(out1 + bf16_to_float(*(uint16_t*)&pc[7 + ldc]));
-      pc[7 + 2 * ldc]   = float_to_bf16(out2 + bf16_to_float(*(uint16_t*)&pc[7 + 2 * ldc]));
-      pc[7 + 3 * ldc]   = float_to_bf16(out3 + bf16_to_float(*(uint16_t*)&pc[7 + 3 * ldc]));
-#else
-      pc[7]             += out0;
-      pc[7 + ldc]       += out1;
-      pc[7 + 2 * ldc]   += out2;
-      pc[7 + 3 * ldc]   += out3;
-#endif
+      STORE_ROW(acc01_r0, acc23_r0, 0);
+      STORE_ROW(acc01_r1, acc23_r1, 1);
+      STORE_ROW(acc01_r2, acc23_r2, 2);
+      STORE_ROW(acc01_r3, acc23_r3, 3);
+      STORE_ROW(acc01_r4, acc23_r4, 4);
+      STORE_ROW(acc01_r5, acc23_r5, 5);
+      STORE_ROW(acc01_r6, acc23_r6, 6);
+      STORE_ROW(acc01_r7, acc23_r7, 7);
+#undef STORE_ROW
     }
 
     // remaining rows (<8) slow path
@@ -293,11 +183,11 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
           acc23 = vbfdotq_f32(acc23, a8, b23);
         }
         for (; kk < k; ++kk, pb += 4) {
-          float b0 = bf16_to_float(pb[0]);
-          float b1 = bf16_to_float(pb[1]);
-          float b2 = bf16_to_float(pb[2]);
-          float b3 = bf16_to_float(pb[3]);
-          float a_f = bf16_to_float(pa[kk]);
+          float b0 = bf16_to_float(*(uint16_t*)&pb[0]);
+          float b1 = bf16_to_float(*(uint16_t*)&pb[1]);
+          float b2 = bf16_to_float(*(uint16_t*)&pb[2]);
+          float b3 = bf16_to_float(*(uint16_t*)&pb[3]);
+          float a_f = bf16_to_float(*(uint16_t*)&pa[kk]);
           float tmp01[4], tmp23[4];
           vst1q_f32(tmp01, acc01);
           vst1q_f32(tmp23, acc23);
@@ -308,16 +198,16 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
         }
 
         float32x4_t cvec = vpaddq_f32(acc01, acc23);
-        cvec = vmulq_f32(cvec, alpha);
-        float out0 = vgetq_lane_f32(cvec, 0);
-        float out1 = vgetq_lane_f32(cvec, 1);
-        float out2 = vgetq_lane_f32(cvec, 2);
-        float out3 = vgetq_lane_f32(cvec, 3);
+        cvec = vmulq_f32( cvec, alpha);
+        float out0 = vgetq_lane_f32( cvec, 0);
+        float out1 = vgetq_lane_f32( cvec, 1);
+        float out2 = vgetq_lane_f32( cvec, 2);
+        float out3 = vgetq_lane_f32( cvec, 3);
 #ifdef BGEMM
-        pc[0]       = float_to_bf16(out0 + bf16_to_float(pc[0]));
-        pc[ldc]     = float_to_bf16(out1 + bf16_to_float(pc[ldc]));
-        pc[2 * ldc] = float_to_bf16(out2 + bf16_to_float(pc[2 * ldc]));
-        pc[3 * ldc] = float_to_bf16(out3 + bf16_to_float(pc[3 * ldc]));
+        pc[0]       = float_to_bf16(out0 + bf16_to_float(*(uint16_t*)&pc[0]));
+        pc[ldc]     = float_to_bf16(out1 + bf16_to_float(*(uint16_t*)&pc[ldc]));
+        pc[2 * ldc] = float_to_bf16(out2 + bf16_to_float(*(uint16_t*)&pc[2 * ldc]));
+        pc[3 * ldc] = float_to_bf16(out3 + bf16_to_float(*(uint16_t*)&pc[3 * ldc]));
 #else
         pc[0]       += out0;
         pc[ldc]     += out1;
@@ -341,33 +231,26 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
         IFLOAT *pb_ptr = pb;
         
         BLASLONG kk = 0;
-        // Interleaved part of A: 32 elements per K=4 block (Row0..7, K..K+3)
         for (; kk + 3 < k; kk += 4) {
-           // pa points to 32 elems: Row0[0..3], Row1[0..3]... Row7[0..3]
-           // Actually, oncopy packs: Row0[0..3] contiguous, then Row1[0..3]...
-           // So Row r elements are at pa + r*4.
-           float b0 = bf16_to_float(pb_ptr[0]);
-           float b1 = bf16_to_float(pb_ptr[1]);
-           float b2 = bf16_to_float(pb_ptr[2]);
-           float b3 = bf16_to_float(pb_ptr[3]);
+           float b0 = bf16_to_float(*(uint16_t*)&pb_ptr[0]);
+           float b1 = bf16_to_float(*(uint16_t*)&pb_ptr[1]);
+           float b2 = bf16_to_float(*(uint16_t*)&pb[2]);
+           float b3 = bf16_to_float(*(uint16_t*)&pb[3]);
            
            for (int r = 0; r < 8; ++r) {
-              float a0 = bf16_to_float(pa[r*4 + 0]);
-              float a1 = bf16_to_float(pa[r*4 + 1]);
-              float a2 = bf16_to_float(pa[r*4 + 2]);
-              float a3 = bf16_to_float(pa[r*4 + 3]);
+              float a0 = bf16_to_float(*(uint16_t*)&pa[r*4 + 0]);
+              float a1 = bf16_to_float(*(uint16_t*)&pa[r*4 + 1]);
+              float a2 = bf16_to_float(*(uint16_t*)&pa[r*4 + 2]);
+              float a3 = bf16_to_float(*(uint16_t*)&pa[r*4 + 3]);
               acc[r] += a0*b0 + a1*b1 + a2*b2 + a3*b3;
            }
            pa += 32;
            pb_ptr += 4;
         }
-        // Tail K for this block
-        // oncopy packs: Row0[k], Row1[k]... Row7[k]
-        // So Row r element is at pa[r].
         for (; kk < k; ++kk) {
-           float b = bf16_to_float(*pb_ptr++);
+           float b = bf16_to_float(*(uint16_t*)pb_ptr++);
            for (int r = 0; r < 8; ++r) {
-              acc[r] += bf16_to_float(pa[r]) * b;
+              acc[r] += bf16_to_float(*(uint16_t*)&pa[r]) * b;
            }
            pa += 8;
         }
@@ -378,7 +261,7 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
            BLASLONG row = ib * 8 + r;
 #ifdef BGEMM
            bfloat16 *pc = C + j * ldc + row;
-           *pc = float_to_bf16(acc[r] * alpha_f + bf16_to_float(*pc));
+           *pc = float_to_bf16(acc[r] * alpha_f + bf16_to_float(*(uint16_t*)pc));
 #else
            float *pc = C + j * ldc + row;
            *pc += acc[r] * alpha_f;
@@ -386,12 +269,8 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
         }
       }
       
-#include <stdio.h>
-
-// ... (inside function)
-
-    // remaining rows (<8) slow path
-    if (rem_m) {
+      // remaining rows (<8) slow path
+      if (rem_m) {
          BLASLONG row_base = mb8 * 8;
          for (BLASLONG r = 0; r < rem_m; ++r) {
             float acc = 0;
@@ -401,15 +280,14 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
                float bv = bf16_to_float(*(uint16_t*)pb_ptr++);
                acc += av * bv;
                if (m==2 && n==2 && k==2) {
-                   printf("K_DEBUG: col=%ld r=%ld kk=%ld A=%f B=%f acc=%f IFLOAT=%d\n", col, r, kk, av, bv, acc, (int)sizeof(IFLOAT));
+                   printf("K: r=%ld kk=%ld pa=%p av=%f pb=%p bv=%f\n", r, kk, pa-1, av, pb_ptr-1, bv);
                }
             }
-// ...
             BLASLONG row = row_base + r;
             BLASLONG j = nb4 * 4 + col;
 #ifdef BGEMM
             bfloat16 *pc = C + j * ldc + row;
-            *pc = float_to_bf16(acc * alpha_f + bf16_to_float(*pc));
+            *pc = float_to_bf16(acc * alpha_f + bf16_to_float(*(uint16_t*)pc));
 #else
             float *pc = C + j * ldc + row;
             *pc += acc * alpha_f;
