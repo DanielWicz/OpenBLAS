@@ -7,7 +7,7 @@ DGEMMKERNEL  = dgemm_kernel_ampere1_8x4.S
 ifeq ($(BUILD_BFLOAT16), 1)
 BGEMM_BETA     = bgemm_beta_neon.c
 BGEMMKERNEL    = sbgemm_kernel_ampere1_8x4.c
-BGEMMINCOPY    = sbgemm_ncopy_8_ampere1.c
+BGEMMINCOPY    = sbgemm_itcopy_4_ampere1.c
 BGEMMITCOPY    = sbgemm_itcopy_4_ampere1.c
 BGEMMONCOPY    = sbgemm_oncopy_8_ampere1.c
 BGEMMOTCOPY    = sbgemm_otcopy_8_ampere1.c
@@ -20,11 +20,11 @@ BGEMVNKERNEL   = bgemv_n_ampere1.c
 
 SBGEMM_BETA     = sbgemm_beta_neoversen2.c
 SBGEMMKERNEL    = sbgemm_kernel_ampere1_8x4.c
-SBGEMMINCOPY    = sbgemm_oncopy_8_ampere1.c
+SBGEMMINCOPY    = sbgemm_itcopy_4_ampere1.c
 SBGEMMITCOPY    = sbgemm_itcopy_4_ampere1.c
 SBGEMMONCOPY    = sbgemm_oncopy_8_ampere1.c
 SBGEMMOTCOPY    = sbgemm_otcopy_8_ampere1.c
-SBGEMMINCOPYOBJ = sbgemm_oncopy$(TSUFFIX).$(SUFFIX)
+SBGEMMINCOPYOBJ = sbgemm_incopy$(TSUFFIX).$(SUFFIX)
 SBGEMMITCOPYOBJ = sbgemm_itcopy$(TSUFFIX).$(SUFFIX)
 SBGEMMONCOPYOBJ = sbgemm_oncopy$(TSUFFIX).$(SUFFIX)
 SBGEMMOTCOPYOBJ = sbgemm_otcopy$(TSUFFIX).$(SUFFIX)

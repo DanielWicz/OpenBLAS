@@ -1,124 +1,62 @@
 /***************************************************************************
- * Pack A for AmpereOne BF16 GEMM (8 rows).
- * Case: A is Normal (No Transpose). M x K Column Major.
- * We need to pack 8 rows of A.
- * Row i is at: src + i + k * lda. (Stride lda).
- * Output layout (Interleaved K=4):
- *  Row0[0..3], Row1[0..3] ... Row7[0..3]
+ * Pack B (op(B) shape: m rows = K, n cols = Nblock) for AmpereOne BF16 GEMM.
+ *
+ * Layout for each 4-column tile:
+ *   for kk in [0..m) step 4:
+ *     Col0 kk..kk+3
+ *     Col1 kk..kk+3
+ *     Col2 kk..kk+3
+ *     Col3 kk..kk+3   (16 bf16)
+ *   remaining k (<4): [col0, col1, col2, col3] for that k (4 bf16)
+ *
+ * Remaining columns (<4) are stored column-major, contiguous K values.
+ * The same layout serves both TransB=N and TransB=T; the caller passes
+ * pointers/lda that reflect the chosen transpose.
  ***************************************************************************/
 #define BFLOAT16
 #define SBGEMM
 #include "common.h"
-#include <stdio.h>
-
-static inline float bf16_to_float_local(uint16_t h) {
-  union { uint32_t u; float f; } v;
-  v.u = ((uint32_t)h) << 16;
-  return v.f;
-}
-#define bf16_to_float bf16_to_float_local
 
 int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
-  static int debug_print = 0;
-  static int tail_print = 0;
-  if (!debug_print) {
-      BLASLONG k = n;
-      BLASLONG m8 = m >> 3;
-      BLASLONG rem = m & 7;
-      printf("ONCOPY/INCOPY (oncopy file) called m=%ld n=%ld lda=%ld k=%ld m8=%ld rem_m=%ld dst=%p src=%p\n",
-             m, n, ldb, k, m8, rem, dst, src);
-      debug_print = 1;
-  }
-  
-  BLASLONG k = n;
-  BLASLONG lda = ldb;
-  
-  BLASLONG m8 = m >> 3;
-  BLASLONG rem = m & 7;
+  BLASLONG n4 = n >> 2;      /* blocks of 4 columns */
+  BLASLONG rem_n = n & 3;    /* leftover columns     */
 
-  for (BLASLONG ib = 0; ib < m8; ++ib) {
-    IFLOAT *block_base = src + ib * 8;
-    IFLOAT *out = dst + ib * (k * 8);
+  IFLOAT *out = dst;
+
+  /* 4-column tiles */
+  for (BLASLONG jb = 0; jb < n4; ++jb) {
+    IFLOAT *col0 = src + jb * 4 * ldb;
+    IFLOAT *col1 = col0 + ldb;
+    IFLOAT *col2 = col1 + ldb;
+    IFLOAT *col3 = col2 + ldb;
 
     BLASLONG kk = 0;
-    for (; kk + 3 < k; kk += 4) {
-      IFLOAT *ptr0 = block_base + kk * lda;
-      IFLOAT *ptr1 = ptr0 + lda;
-      IFLOAT *ptr2 = ptr1 + lda;
-      IFLOAT *ptr3 = ptr2 + lda;
-
-      if (m==2 && n==2) {
-          printf("ONCOPY_MAIN: ib=%ld kk=%ld A0_val=%f A1_val=%f A2_val=%f A3_val=%f\n",
-                 ib, kk, bf16_to_float(*(uint16_t*)&ptr0[0]), bf16_to_float(*(uint16_t*)&ptr1[0]),
-                 bf16_to_float(*(uint16_t*)&ptr2[0]), bf16_to_float(*(uint16_t*)&ptr3[0]));
-      }
-
-      // Row 0 (offset 0)
-      out[0] = ptr0[0]; out[1] = ptr1[0]; out[2] = ptr2[0]; out[3] = ptr3[0];
-      // Row 1 (offset 1)
-      out[4] = ptr0[1]; out[5] = ptr1[1]; out[6] = ptr2[1]; out[7] = ptr3[1];
-      // Row 2
-      out[8] = ptr0[2]; out[9] = ptr1[2]; out[10] = ptr2[2]; out[11] = ptr3[2];
-      // Row 3
-      out[12] = ptr0[3]; out[13] = ptr1[3]; out[14] = ptr2[3]; out[15] = ptr3[3];
-      // Row 4
-      out[16] = ptr0[4]; out[17] = ptr1[4]; out[18] = ptr2[4]; out[19] = ptr3[4];
-      // Row 5
-      out[20] = ptr0[5]; out[21] = ptr1[5]; out[22] = ptr2[5]; out[23] = ptr3[5];
-      // Row 6
-      out[24] = ptr0[6]; out[25] = ptr1[6]; out[26] = ptr2[6]; out[27] = ptr3[6];
-      // Row 7
-      out[28] = ptr0[7]; out[29] = ptr1[7]; out[30] = ptr2[7]; out[31] = ptr3[7];
-      
-      out += 32;
+    for (; kk + 3 < m; kk += 4) {
+      out[0]  = col0[kk + 0]; out[1]  = col0[kk + 1]; out[2]  = col0[kk + 2]; out[3]  = col0[kk + 3];
+      out[4]  = col1[kk + 0]; out[5]  = col1[kk + 1]; out[6]  = col1[kk + 2]; out[7]  = col1[kk + 3];
+      out[8]  = col2[kk + 0]; out[9]  = col2[kk + 1]; out[10] = col2[kk + 2]; out[11] = col2[kk + 3];
+      out[12] = col3[kk + 0]; out[13] = col3[kk + 1]; out[14] = col3[kk + 2]; out[15] = col3[kk + 3];
+      out += 16;
     }
-    for (; kk < k; ++kk) {
-      IFLOAT *ptr = block_base + kk * lda;
-      out[0] = ptr[0];
-      out[1] = ptr[1];
-      out[2] = ptr[2];
-      out[3] = ptr[3];
-      out[4] = ptr[4];
-      out[5] = ptr[5];
-      out[6] = ptr[6];
-      out[7] = ptr[7];
-      out += 8;
+    /* K tail (<4): one value per column */
+    for (; kk < m; ++kk) {
+      out[0] = col0[kk];
+      out[1] = col1[kk];
+      out[2] = col2[kk];
+      out[3] = col3[kk];
+      out += 4;
     }
   }
 
-  if (rem) {
-      BLASLONG ib = m8 * 8;
-      IFLOAT *out = dst + m8 * (k * 8);
-      if (!tail_print) {
-          printf("ONCOPY tail path triggered rem_m=%ld k=%ld dst=%p src=%p\n", rem, k, dst, src);
-          tail_print = 1;
+  /* Remaining columns */
+  if (rem_n) {
+    for (BLASLONG col = 0; col < rem_n; ++col) {
+      IFLOAT *cptr = src + (n4 * 4 + col) * ldb;
+      for (BLASLONG kk = 0; kk < m; ++kk) {
+        *out++ = cptr[kk];
       }
-      for (BLASLONG r = 0; r < rem; ++r) {
-          IFLOAT *row_ptr = src + (ib + r);
-          for (BLASLONG kk = 0; kk < k; ++kk) {
-              IFLOAT val = *(row_ptr + kk * lda);
-              if (m==2 && n==2 && k==2) { // 2x2x2 case
-                  printf("ONCOPY_TAIL: r=%ld kk=%ld lda=%ld src_base=%p addr=%p val=%f out_addr=%p\n", 
-                         r, kk, lda, src, (row_ptr + kk * lda), bf16_to_float(*(uint16_t*)&val), out);
-              }
-              *out++ = val;
-          }
-      }
+    }
   }
 
   return 0;
 }
-
-/* AmpereOne uses this ONCOPY implementation for both the regular ONCOPY
- * and the INCOPY entry point (SBGEMM_DEFAULT_UNROLL_M != SBGEMM_DEFAULT_UNROLL_N).
- * Provide an alias so the exported symbol sbgemm_incopy is available. */
-#define STR1(x) #x
-#define STR(x) STR1(x)
-#if defined(__ELF__)
-__attribute__((weak, alias(STR(CNAME))))
-int sbgemm_incopy(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst);
-#else
-int sbgemm_incopy(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
-    return CNAME(m, n, src, ldb, dst);
-}
-#endif

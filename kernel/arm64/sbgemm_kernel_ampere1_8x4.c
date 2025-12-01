@@ -11,7 +11,6 @@
 #define BFLOAT16
 #define SBGEMM
 #include "common.h"
-#include <stdio.h>
 #include <arm_neon.h>
 
 static inline float bf16_to_float(uint16_t h) {
@@ -38,26 +37,12 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
   const BLASLONG mb8 = m >> 3;          // blocks of 8 rows
   const BLASLONG rem_m = m & 7;
   const BLASLONG rem_n = n & 3;
-  static int entry_print = 0;
-  static int rem_m_print = 0;
-  static int rem_n_print = 0;
-  static int k_tail_print = 0;
 
   float alpha_f = (float)alpha_in;
 #ifdef BGEMM
   alpha_f = bf16_to_float((uint16_t)alpha_in);
 #endif
   float32x4_t alpha = vdupq_n_f32(alpha_f);
-
-  if (!entry_print) {
-    printf("AMP1 sbgemm kernel entry m=%ld n=%ld k=%ld ldc=%ld nb4=%ld mb8=%ld rem_m=%ld rem_n=%ld alpha=%g packA=%p packB=%p C=%p\n",
-           m, n, k, ldc, nb4, mb8, rem_m, rem_n, (double)alpha_f, (void *)packA, (void *)packB, (void *)C);
-    entry_print = 1;
-  }
-  if ((k & 3) && !k_tail_print) {
-    printf("AMP1 sbgemm kernel K tail active (k mod 4 = %ld)\n", k & 3);
-    k_tail_print = 1;
-  }
 
   for (BLASLONG jb = 0; jb < nb4; ++jb) {
     IFLOAT *pb_block = packB + jb * (k * 4);
@@ -147,18 +132,43 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
       float out0, out1, out2, out3;
 
       // helper macro
-#define STORE_ROW(acc01, acc23, idx) \
-      cvec = vpaddq_f32(acc01, acc23); \
-      cvec = vmulq_f32( cvec, alpha); \
-      out0 = vgetq_lane_f32( cvec, 0); out1 = vgetq_lane_f32( cvec, 1); \
-      out2 = vgetq_lane_f32( cvec, 2); out3 = vgetq_lane_f32( cvec, 3); \
-      { \
-        BLASLONG off = idx; \
-        IFLOAT *dst = (IFLOAT*)(pc + off); \
-        dst[0]             = float_to_bf16(out0 + bf16_to_float(*(uint16_t*)&dst[0])); \
-        dst[ldc]           = float_to_bf16(out1 + bf16_to_float(*(uint16_t*)&dst[ldc])); \
-        dst[2 * ldc]       = float_to_bf16(out2 + bf16_to_float(*(uint16_t*)&dst[2 * ldc])); \
-        dst[3 * ldc]       = float_to_bf16(out3 + bf16_to_float(*(uint16_t*)&dst[3 * ldc])); \
+#define STORE_ROW(acc01, acc23, idx)                              \
+      cvec = vpaddq_f32(acc01, acc23);                            \
+      cvec = vmulq_f32(cvec, alpha);                              \
+      out0 = vgetq_lane_f32(cvec, 0);                             \
+      out1 = vgetq_lane_f32(cvec, 1);                             \
+      out2 = vgetq_lane_f32(cvec, 2);                             \
+      out3 = vgetq_lane_f32(cvec, 3);                             \
+      {                                                           \
+        BLASLONG off = idx;                                       \
+        /* BGEMM writes bf16, SBGEMM writes fp32 */               \
+        /* C is column-major, ldc in elements */                  \
+        IFLOAT *dst_bf16;                                         \
+        float  *dst_f32;                                          \
+        (void)dst_bf16; (void)dst_f32;                            \
+        /* clang-format off */                                    \
+        /* store */                                               \
+        /* clang-format on  */                                    \
+        /* BGEMM path */                                          \
+        /* NB: IFLOAT == bfloat16 when BFLOAT16 defined */        \
+        /* SBGEMM path uses dst_f32 (float *) */                  \
+        /* to avoid aliasing issues. */                           \
+        /* */                                                     \
+        /* This block intentionally keeps both paths inline */    \
+        /* to minimize branching in the hot loop. */              \
+#ifdef BGEMM                                                     \
+        dst_bf16 = (IFLOAT *)(pc + off);                          \
+        dst_bf16[0]       = float_to_bf16(out0 + bf16_to_float(*(uint16_t*)&dst_bf16[0])); \
+        dst_bf16[ldc]     = float_to_bf16(out1 + bf16_to_float(*(uint16_t*)&dst_bf16[ldc])); \
+        dst_bf16[2 * ldc] = float_to_bf16(out2 + bf16_to_float(*(uint16_t*)&dst_bf16[2 * ldc])); \
+        dst_bf16[3 * ldc] = float_to_bf16(out3 + bf16_to_float(*(uint16_t*)&dst_bf16[3 * ldc])); \
+#else                                                            \
+        dst_f32 = pc + off;                                      \
+        dst_f32[0]       += out0;                                 \
+        dst_f32[ldc]     += out1;                                 \
+        dst_f32[2 * ldc] += out2;                                 \
+        dst_f32[3 * ldc] += out3;                                 \
+#endif                                                           \
       }
 
       STORE_ROW(acc01_r0, acc23_r0, 0);
@@ -174,10 +184,6 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
 
     // remaining rows (<8) slow path
     if (rem_m) {
-      if (!rem_m_print) {
-        printf("AMP1 sbgemm kernel rem_m path used rem_m=%ld k=%ld mb8=%ld\n", rem_m, k, mb8);
-        rem_m_print = 1;
-      }
       BLASLONG i0 = mb8 * 8;
       for (BLASLONG ir = 0; ir < rem_m; ++ir) {
         IFLOAT *pa = packA + (i0 + ir) * k;
@@ -238,10 +244,6 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
 
   // remaining cols (<4)
   if (rem_n) {
-    if (!rem_n_print) {
-      printf("AMP1 sbgemm kernel rem_n path used rem_n=%ld k=%ld nb4=%ld\n", rem_n, k, nb4);
-      rem_n_print = 1;
-    }
     IFLOAT *pb_base = packB + nb4 * (k * 4);
     for (BLASLONG col = 0; col < rem_n; ++col) {
       IFLOAT *pb = pb_base + col * k;
@@ -256,8 +258,8 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
         for (; kk + 3 < k; kk += 4) {
            float b0 = bf16_to_float(*(uint16_t*)&pb_ptr[0]);
            float b1 = bf16_to_float(*(uint16_t*)&pb_ptr[1]);
-           float b2 = bf16_to_float(*(uint16_t*)&pb[2]);
-           float b3 = bf16_to_float(*(uint16_t*)&pb[3]);
+           float b2 = bf16_to_float(*(uint16_t*)&pb_ptr[2]);
+           float b3 = bf16_to_float(*(uint16_t*)&pb_ptr[3]);
            
            for (int r = 0; r < 8; ++r) {
               float a0 = bf16_to_float(*(uint16_t*)&pa[r*4 + 0]);
