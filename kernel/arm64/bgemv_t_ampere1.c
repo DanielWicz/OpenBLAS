@@ -23,16 +23,16 @@ int CNAME(BLASLONG m, BLASLONG n, bfloat16 alpha, bfloat16 *a, BLASLONG lda,
   float alpha_f = bf16_to_float(alpha);
   float beta_f  = bf16_to_float(beta);
 
-  for (BLASLONG row = 0; row < m; ++row) {
+  for (BLASLONG col = 0; col < n; ++col) {
     float acc = 0.f;
-    for (BLASLONG col = 0; col < n; ++col) {
-      float a_f = bf16_to_float(a[col * lda + row]);
-      float x_f = bf16_to_float(x[col * incx]);
+    for (BLASLONG row = 0; row < m; ++row) {
+      float a_f = bf16_to_float(a[col * lda + row]); // A^T element
+      float x_f = bf16_to_float(x[row * incx]);
       acc += a_f * x_f;
     }
-    float y_old = bf16_to_float(y[row * incy]);
+    float y_old = bf16_to_float(y[col * incy]);
     float y_new = alpha_f * acc + beta_f * y_old;
-    y[row * incy] = float_to_bf16(y_new);
+    y[col * incy] = float_to_bf16(y_new);
   }
   return 0;
 }

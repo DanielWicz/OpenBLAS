@@ -24,17 +24,16 @@ int CNAME(BLASLONG m, BLASLONG n, bfloat16 alpha, bfloat16 *a, BLASLONG lda,
   float alpha_f = bf16_to_float(alpha);
   float beta_f  = bf16_to_float(beta);
 
-  for (BLASLONG col = 0; col < n; ++col) {
-    bfloat16 *acol = a + col * lda;
-    bfloat16 x_bf = x[col * incx];
-    float x_f = bf16_to_float(x_bf);
-
-    for (BLASLONG row = 0; row < m; ++row) {
-      float a_f = bf16_to_float(acol[row]);
-      float y_old = bf16_to_float(y[row * incy]);
-      float y_new = alpha_f * a_f * x_f + beta_f * y_old;
-      y[row * incy] = float_to_bf16(y_new);
+  for (BLASLONG row = 0; row < m; ++row) {
+    float acc = 0.f;
+    for (BLASLONG col = 0; col < n; ++col) {
+      float a_f = bf16_to_float(a[col * lda + row]);
+      float x_f = bf16_to_float(x[col * incx]);
+      acc += a_f * x_f;
     }
+    float y_old = bf16_to_float(y[row * incy]);
+    float y_new = alpha_f * acc + beta_f * y_old;
+    y[row * incy] = float_to_bf16(y_new);
   }
   return 0;
 }
