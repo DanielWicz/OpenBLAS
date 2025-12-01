@@ -9,15 +9,6 @@
 #define BFLOAT16
 #define SBGEMM
 #include "common.h"
-#include <stdio.h>
-
-// Define helper first
-static inline float bf16_to_float_local(uint16_t h) {
-  union { uint32_t u; float f; } v;
-  v.u = ((uint32_t)h) << 16;
-  return v.f;
-}
-#define bf16_to_float bf16_to_float_local
 
 int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
   // OpenBLAS standard for COPY:
@@ -27,7 +18,7 @@ int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
   // ldb = stride of source (lda)
   // dst = dest buffer
   
-  // For ONCOPY (Normal A): m=M, n=K. 
+  // For ONCOPY (Normal A): m=M, n=K.
   
   BLASLONG k = n;
   BLASLONG lda = ldb;
@@ -86,11 +77,6 @@ int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
           IFLOAT *row_ptr = src + (ib + r);
           for (BLASLONG kk = 0; kk < k; ++kk) {
               IFLOAT val = *(row_ptr + kk * lda);
-              if (m==2 && n==2) {
-                  printf("ONCOPY: r=%ld kk=%ld lda=%ld src=%p addr=%p val=%f out=%p\n", 
-                         r, kk, lda, src, (row_ptr + kk * lda), bf16_to_float(*(uint16_t*)&val), out);
-                  fflush(stdout);
-              }
               *out++ = val;
           }
       }
