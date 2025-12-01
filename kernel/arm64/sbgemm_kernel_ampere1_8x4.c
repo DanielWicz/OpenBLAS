@@ -242,7 +242,7 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
     IFLOAT *pb_base = packB + nb4 * (k * 4);
     for (BLASLONG col = 0; col < rem_n; ++col) {
       IFLOAT *pb = pb_base + col * k;
-      IFLOAT *pa = packA;
+      IFLOAT *pa_base = packA;
       
       // Process blocks of 8 rows
       for (BLASLONG ib = 0; ib < mb8; ++ib) {
@@ -294,8 +294,9 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
          for (BLASLONG r = 0; r < rem_m; ++r) {
             float acc = 0;
             IFLOAT *pb_ptr = pb;
+            IFLOAT *pa_row = pa_base + (row_base + r) * k;
             for (BLASLONG kk = 0; kk < k; ++kk) {
-               float av = bf16_to_float(*(uint16_t*)pa++);
+               float av = bf16_to_float(*(uint16_t*)&pa_row[kk]);
                float bv = bf16_to_float(*(uint16_t*)pb_ptr++);
                acc += av * bv;
             }
