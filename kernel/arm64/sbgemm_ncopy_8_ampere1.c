@@ -11,8 +11,14 @@
 #define BFLOAT16
 #define SBGEMM
 #include "common.h"
+#include <stdio.h>
 
 int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
+  static int debug_print = 0;
+  if (!debug_print) {
+      printf("NCOPY: IFLOAT=%d\n", (int)sizeof(IFLOAT));
+      debug_print = 1;
+  }
   // m is K (rows of B)
   // n is N (cols of B)
   BLASLONG k = m;
