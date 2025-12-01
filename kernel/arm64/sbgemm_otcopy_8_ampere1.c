@@ -5,25 +5,18 @@
  * Input Col i is at: src + i * lda. Elements contiguous.
  * Output layout (Interleaved K=4):
  *  Row0[0..3], Row1[0..3] ...
- ***************************************************************************/ 
+ ***************************************************************************/
 #define BFLOAT16
 #define SBGEMM
 #include "common.h"
 #include <stdio.h>
 
 int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
-  static int debug_print = 0;
-  if (!debug_print) {
-      printf("OTCOPY called m=%ld n=%ld\n", m, n);
-      debug_print = 1;
-  }
+  // OTCOPY (Transpose A): m=M, n=K.
+  // src is K x M (Transposed A).
+  // We read M rows of Op(A) -> M columns of src.
+  // Column i is at src + i*lda.
   
-  // Correct argument mapping for OTCOPY (A is K x M):
-  // OpenBLAS passes (m, k, src, lda, dst).
-  // But wait, `OTCOPY` arguments are generic `(m, n, ...)`.
-  // For GEMM(A), `m` is Rows of A, `n` is Cols of A (which is K).
-  // So `m` corresponds to M, `n` corresponds to K.
-  // `ldb` corresponds to lda.
   BLASLONG k = n;
   BLASLONG lda = ldb;
 

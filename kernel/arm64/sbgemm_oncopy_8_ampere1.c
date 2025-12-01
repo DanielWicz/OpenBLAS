@@ -5,22 +5,22 @@
  * Row i is at: src + i + k * lda. (Stride lda).
  * Output layout (Interleaved K=4):
  *  Row0[0..3], Row1[0..3] ... Row7[0..3]
- ***************************************************************************/ 
+ ***************************************************************************/
 #define BFLOAT16
 #define SBGEMM
 #include "common.h"
 #include <stdio.h>
 
 int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
-  static int debug_print = 0;
-  if (!debug_print) {
-      printf("ONCOPY called m=%ld n=%ld\n", m, n);
-      debug_print = 1;
-  }
+  // OpenBLAS standard for COPY:
+  // m = rows of matrix to be packed
+  // n = columns of matrix to be packed
+  // src = source buffer
+  // ldb = stride of source (lda)
+  // dst = dest buffer
   
-  // Correct argument mapping for ONCOPY (A is M x K):
-  // OpenBLAS passes (m, k, ...) to ONCOPY.
-  // So 'm' is M, 'n' is K. 'ldb' is actually lda.
+  // For ONCOPY (Normal A): m=M, n=K.
+  
   BLASLONG k = n;
   BLASLONG lda = ldb;
   
@@ -76,6 +76,11 @@ int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
       IFLOAT *out = dst + m8 * (k * 8);
       for (BLASLONG r = 0; r < rem; ++r) {
           // Row (ib + r) is at src + (ib+r) + k*lda
+          // Wait. This is wrong.
+          // src points to A[0,0].
+          // Row i start is src + i.
+          // Element A[i, k] is at (src + i) + k*lda.
+          
           IFLOAT *row_ptr = src + (ib + r);
           for (BLASLONG kk = 0; kk < k; ++kk) {
               *out++ = *(row_ptr + kk * lda);
