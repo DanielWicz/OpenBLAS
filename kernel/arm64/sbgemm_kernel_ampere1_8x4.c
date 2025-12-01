@@ -8,10 +8,13 @@
  *      Row0[kk..kk+3], Row1[kk..kk+3] ... Row7[kk..kk+3]
  ***************************************************************************/
 
+#undef DOUBLE
+#undef COMPLEX
 #define BFLOAT16
 #define SBGEMM
 #include "common.h"
 #include <arm_neon.h>
+#include <stdio.h>
 
 static inline float bf16_to_float(uint16_t h) {
   union {
@@ -398,7 +401,7 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
                float bv = bf16_to_float(*(uint16_t*)pb_ptr++);
                acc += av * bv;
                if (m==2 && n==2 && k==2) {
-                   printf("K_DEBUG: col=%ld r=%ld kk=%ld A=%f B=%f acc=%f\n", col, r, kk, av, bv, acc);
+                   printf("K_DEBUG: col=%ld r=%ld kk=%ld A=%f B=%f acc=%f IFLOAT=%d\n", col, r, kk, av, bv, acc, (int)sizeof(IFLOAT));
                }
             }
 // ...
