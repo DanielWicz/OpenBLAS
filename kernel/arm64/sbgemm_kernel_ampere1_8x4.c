@@ -325,26 +325,81 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
 
   // remaining cols (<4)
   if (rem_n) {
-    BLASLONG jb = nb4 * 4;
-    IFLOAT *pb_block = packB + nb4 * (k * 4);
+    IFLOAT *pb_base = packB + nb4 * (k * 4);
     for (BLASLONG col = 0; col < rem_n; ++col) {
-      for (BLASLONG i = 0; i < m; ++i) {
-        IFLOAT *pb = pb_block + col * k;
-        IFLOAT *pa = packA + i * k;
-#ifdef BGEMM
-        bfloat16 *pc = C + (jb + col) * ldc + i;
-#else
-        float *pc = C + (jb + col) * ldc + i;
-#endif
-        float acc = 0.f;
-        for (BLASLONG kk = 0; kk < k; ++kk) {
-          acc += bf16_to_float(pb[kk]) * bf16_to_float(pa[kk]);
+      IFLOAT *pb = pb_base + col * k;
+      IFLOAT *pa = packA;
+      
+      // Process blocks of 8 rows
+      for (BLASLONG ib = 0; ib < mb8; ++ib) {
+        float acc[8] = {0,0,0,0, 0,0,0,0};
+        IFLOAT *pb_ptr = pb;
+        
+        BLASLONG kk = 0;
+        // Interleaved part of A: 32 elements per K=4 block (Row0..7, K..K+3)
+        for (; kk + 3 < k; kk += 4) {
+           // pa points to 32 elems: Row0[0..3], Row1[0..3]... Row7[0..3]
+           // Actually, oncopy packs: Row0[0..3] contiguous, then Row1[0..3]...
+           // So Row r elements are at pa + r*4.
+           float b0 = bf16_to_float(pb_ptr[0]);
+           float b1 = bf16_to_float(pb_ptr[1]);
+           float b2 = bf16_to_float(pb_ptr[2]);
+           float b3 = bf16_to_float(pb_ptr[3]);
+           
+           for (int r = 0; r < 8; ++r) {
+              float a0 = bf16_to_float(pa[r*4 + 0]);
+              float a1 = bf16_to_float(pa[r*4 + 1]);
+              float a2 = bf16_to_float(pa[r*4 + 2]);
+              float a3 = bf16_to_float(pa[r*4 + 3]);
+              acc[r] += a0*b0 + a1*b1 + a2*b2 + a3*b3;
+           }
+           pa += 32;
+           pb_ptr += 4;
         }
+        // Tail K for this block
+        // oncopy packs: Row0[k], Row1[k]... Row7[k]
+        // So Row r element is at pa[r].
+        for (; kk < k; ++kk) {
+           float b = bf16_to_float(*pb_ptr++);
+           for (int r = 0; r < 8; ++r) {
+              acc[r] += bf16_to_float(pa[r]) * b;
+           }
+           pa += 8;
+        }
+        
+        // Store 8 rows
+        BLASLONG j = nb4 * 4 + col;
+        for (int r = 0; r < 8; ++r) {
+           BLASLONG row = ib * 8 + r;
 #ifdef BGEMM
-        pc[0] = float_to_bf16(acc * alpha_f + bf16_to_float(pc[0]));
+           bfloat16 *pc = C + j * ldc + row;
+           *pc = float_to_bf16(acc[r] * alpha_f + bf16_to_float(*pc));
 #else
-        pc[0] += acc * alpha_f;
+           float *pc = C + j * ldc + row;
+           *pc += acc[r] * alpha_f;
 #endif
+        }
+      }
+      
+      // Remainder rows (packed sequentially)
+      if (rem_m) {
+         BLASLONG row_base = mb8 * 8;
+         for (BLASLONG r = 0; r < rem_m; ++r) {
+            float acc = 0;
+            IFLOAT *pb_ptr = pb;
+            for (BLASLONG kk = 0; kk < k; ++kk) {
+               acc += bf16_to_float(*pa++) * bf16_to_float(*pb_ptr++);
+            }
+            BLASLONG row = row_base + r;
+            BLASLONG j = nb4 * 4 + col;
+#ifdef BGEMM
+            bfloat16 *pc = C + j * ldc + row;
+            *pc = float_to_bf16(acc * alpha_f + bf16_to_float(*pc));
+#else
+            float *pc = C + j * ldc + row;
+            *pc += acc * alpha_f;
+#endif
+         }
       }
     }
   }
