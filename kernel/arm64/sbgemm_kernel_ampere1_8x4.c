@@ -90,47 +90,138 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
       }
 
       // Store accumulators (only lanes 0/1 carry cols 0/1 and 2/3)
+      float32x2_t c01, c23;
+      float32x4_t cvec;
+      float out0, out1, out2, out3;
+
+      // row 0..7
+      c01 = vget_low_f32(acc01_r0); c23 = vget_low_f32(acc23_r0);
+      cvec = vmulq_f32(vcombine_f32(c01, c23), alpha);
+      out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
+      out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
 #ifdef BGEMM
-#define STORE_ROW(pc_row, acc01, acc23)                                     \
-      {                                                                     \
-        float32x2_t c01 = vget_low_f32(acc01);                              \
-        float32x2_t c23 = vget_low_f32(acc23);                              \
-        float32x4_t cvec = vmulq_f32(vcombine_f32(c01, c23), alpha);        \
-        float out0 = vgetq_lane_f32(cvec, 0);                               \
-        float out1 = vgetq_lane_f32(cvec, 1);                               \
-        float out2 = vgetq_lane_f32(cvec, 2);                               \
-        float out3 = vgetq_lane_f32(cvec, 3);                               \
-        pc_row[0]       = float_to_bf16(out0);                              \
-        pc_row[ldc]     = float_to_bf16(out1);                              \
-        pc_row[2 * ldc] = float_to_bf16(out2);                              \
-        pc_row[3 * ldc] = float_to_bf16(out3);                              \
-      }
+      pc[0]             = float_to_bf16(out0);
+      pc[ldc]           = float_to_bf16(out1);
+      pc[2 * ldc]       = float_to_bf16(out2);
+      pc[3 * ldc]       = float_to_bf16(out3);
 #else
-#define STORE_ROW(pc_row, acc01, acc23)                                     \
-      {                                                                     \
-        float32x2_t c01 = vget_low_f32(acc01);                              \
-        float32x2_t c23 = vget_low_f32(acc23);                              \
-        float32x4_t cvec = vmulq_f32(vcombine_f32(c01, c23), alpha);        \
-        float tmp0 = vgetq_lane_f32(cvec, 0);                               \
-        float tmp1 = vgetq_lane_f32(cvec, 1);                               \
-        float tmp2 = vgetq_lane_f32(cvec, 2);                               \
-        float tmp3 = vgetq_lane_f32(cvec, 3);                               \
-        pc_row[0]       += tmp0;                                            \
-        pc_row[ldc]     += tmp1;                                            \
-        pc_row[2 * ldc] += tmp2;                                            \
-        pc_row[3 * ldc] += tmp3;                                            \
-      }
+      pc[0]             += out0;
+      pc[ldc]           += out1;
+      pc[2 * ldc]       += out2;
+      pc[3 * ldc]       += out3;
 #endif
 
-      STORE_ROW(pc,           acc01_r0, acc23_r0);
-      STORE_ROW(pc + 1,       acc01_r1, acc23_r1);
-      STORE_ROW(pc + 2,       acc01_r2, acc23_r2);
-      STORE_ROW(pc + 3,       acc01_r3, acc23_r3);
-      STORE_ROW(pc + 4,       acc01_r4, acc23_r4);
-      STORE_ROW(pc + 5,       acc01_r5, acc23_r5);
-      STORE_ROW(pc + 6,       acc01_r6, acc23_r6);
-      STORE_ROW(pc + 7,       acc01_r7, acc23_r7);
-#undef STORE_ROW
+      c01 = vget_low_f32(acc01_r1); c23 = vget_low_f32(acc23_r1);
+      cvec = vmulq_f32(vcombine_f32(c01, c23), alpha);
+      out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
+      out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
+#ifdef BGEMM
+      pc[1]             = float_to_bf16(out0);
+      pc[1 + ldc]       = float_to_bf16(out1);
+      pc[1 + 2 * ldc]   = float_to_bf16(out2);
+      pc[1 + 3 * ldc]   = float_to_bf16(out3);
+#else
+      pc[1]             += out0;
+      pc[1 + ldc]       += out1;
+      pc[1 + 2 * ldc]   += out2;
+      pc[1 + 3 * ldc]   += out3;
+#endif
+
+      c01 = vget_low_f32(acc01_r2); c23 = vget_low_f32(acc23_r2);
+      cvec = vmulq_f32(vcombine_f32(c01, c23), alpha);
+      out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
+      out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
+#ifdef BGEMM
+      pc[2]             = float_to_bf16(out0);
+      pc[2 + ldc]       = float_to_bf16(out1);
+      pc[2 + 2 * ldc]   = float_to_bf16(out2);
+      pc[2 + 3 * ldc]   = float_to_bf16(out3);
+#else
+      pc[2]             += out0;
+      pc[2 + ldc]       += out1;
+      pc[2 + 2 * ldc]   += out2;
+      pc[2 + 3 * ldc]   += out3;
+#endif
+
+      c01 = vget_low_f32(acc01_r3); c23 = vget_low_f32(acc23_r3);
+      cvec = vmulq_f32(vcombine_f32(c01, c23), alpha);
+      out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
+      out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
+#ifdef BGEMM
+      pc[3]             = float_to_bf16(out0);
+      pc[3 + ldc]       = float_to_bf16(out1);
+      pc[3 + 2 * ldc]   = float_to_bf16(out2);
+      pc[3 + 3 * ldc]   = float_to_bf16(out3);
+#else
+      pc[3]             += out0;
+      pc[3 + ldc]       += out1;
+      pc[3 + 2 * ldc]   += out2;
+      pc[3 + 3 * ldc]   += out3;
+#endif
+
+      c01 = vget_low_f32(acc01_r4); c23 = vget_low_f32(acc23_r4);
+      cvec = vmulq_f32(vcombine_f32(c01, c23), alpha);
+      out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
+      out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
+#ifdef BGEMM
+      pc[4]             = float_to_bf16(out0);
+      pc[4 + ldc]       = float_to_bf16(out1);
+      pc[4 + 2 * ldc]   = float_to_bf16(out2);
+      pc[4 + 3 * ldc]   = float_to_bf16(out3);
+#else
+      pc[4]             += out0;
+      pc[4 + ldc]       += out1;
+      pc[4 + 2 * ldc]   += out2;
+      pc[4 + 3 * ldc]   += out3;
+#endif
+
+      c01 = vget_low_f32(acc01_r5); c23 = vget_low_f32(acc23_r5);
+      cvec = vmulq_f32(vcombine_f32(c01, c23), alpha);
+      out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
+      out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
+#ifdef BGEMM
+      pc[5]             = float_to_bf16(out0);
+      pc[5 + ldc]       = float_to_bf16(out1);
+      pc[5 + 2 * ldc]   = float_to_bf16(out2);
+      pc[5 + 3 * ldc]   = float_to_bf16(out3);
+#else
+      pc[5]             += out0;
+      pc[5 + ldc]       += out1;
+      pc[5 + 2 * ldc]   += out2;
+      pc[5 + 3 * ldc]   += out3;
+#endif
+
+      c01 = vget_low_f32(acc01_r6); c23 = vget_low_f32(acc23_r6);
+      cvec = vmulq_f32(vcombine_f32(c01, c23), alpha);
+      out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
+      out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
+#ifdef BGEMM
+      pc[6]             = float_to_bf16(out0);
+      pc[6 + ldc]       = float_to_bf16(out1);
+      pc[6 + 2 * ldc]   = float_to_bf16(out2);
+      pc[6 + 3 * ldc]   = float_to_bf16(out3);
+#else
+      pc[6]             += out0;
+      pc[6 + ldc]       += out1;
+      pc[6 + 2 * ldc]   += out2;
+      pc[6 + 3 * ldc]   += out3;
+#endif
+
+      c01 = vget_low_f32(acc01_r7); c23 = vget_low_f32(acc23_r7);
+      cvec = vmulq_f32(vcombine_f32(c01, c23), alpha);
+      out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
+      out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
+#ifdef BGEMM
+      pc[7]             = float_to_bf16(out0);
+      pc[7 + ldc]       = float_to_bf16(out1);
+      pc[7 + 2 * ldc]   = float_to_bf16(out2);
+      pc[7 + 3 * ldc]   = float_to_bf16(out3);
+#else
+      pc[7]             += out0;
+      pc[7 + ldc]       += out1;
+      pc[7 + 2 * ldc]   += out2;
+      pc[7 + 3 * ldc]   += out3;
+#endif
     }
 
     // remaining rows (<8) slow path
