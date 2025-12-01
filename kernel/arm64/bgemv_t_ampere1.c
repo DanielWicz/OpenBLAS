@@ -9,8 +9,12 @@ static inline float bf16_to_float(uint16_t h) {
   return v.f;
 }
 
+/* round-to-nearest-even to match reference helpers */
 static inline bfloat16 float_to_bf16(float x) {
   union { float f; uint32_t u; } v = { x };
+  uint32_t lsb = (v.u >> 16) & 1;
+  uint32_t rounding_bias = 0x7FFF + lsb;
+  v.u += rounding_bias;
   return (bfloat16)(v.u >> 16);
 }
 
