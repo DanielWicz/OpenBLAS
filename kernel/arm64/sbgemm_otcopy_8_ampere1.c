@@ -11,11 +11,19 @@
 #include "common.h"
 #include <stdio.h>
 
+static inline float bf16_to_float_local(uint16_t h) {
+  union { uint32_t u; float f; } v;
+  v.u = ((uint32_t)h) << 16;
+  return v.f;
+}
+#define bf16_to_float bf16_to_float_local
+
 int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
-  // OTCOPY (Transpose A): m=M, n=K.
-  // src is K x M (Transposed A).
-  // We read M rows of Op(A) -> M columns of src.
-  // Column i is at src + i*lda.
+  static int debug_print = 0;
+  if (!debug_print) {
+      printf("OTCOPY (otcopy file) called m=%ld n=%ld lda=%ld\n", m, n, ldb);
+      debug_print = 1;
+  }
   
   BLASLONG k = n;
   BLASLONG lda = ldb;
@@ -36,6 +44,12 @@ int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
 
     BLASLONG kk = 0;
     for (; kk + 3 < k; kk += 4) {
+      if (m==2 && n==2) {
+          printf("OTCOPY_MAIN: ib=%ld kk=%ld col0_val=%f col1_val=%f col2_val=%f col3_val=%f\n",
+                 ib, kk, bf16_to_float(*(uint16_t*)&col0[kk]), bf16_to_float(*(uint16_t*)&col1[kk]),
+                 bf16_to_float(*(uint16_t*)&col2[kk]), bf16_to_float(*(uint16_t*)&col3[kk]));
+      }
+
       out[0] = col0[kk+0]; out[1] = col0[kk+1]; out[2] = col0[kk+2]; out[3] = col0[kk+3];
       out[4] = col1[kk+0]; out[5] = col1[kk+1]; out[6] = col1[kk+2]; out[7] = col1[kk+3];
       out[8] = col2[kk+0]; out[9] = col2[kk+1]; out[10] = col2[kk+2]; out[11] = col2[kk+3];
@@ -47,7 +61,8 @@ int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
       out += 32;
     }
     for (; kk < k; ++kk) {
-      out[0] = col0[kk];
+      IFLOAT *ptr = col0 + kk * lda;
+      out[0] = ptr[0];
       out[1] = col1[kk];
       out[2] = col2[kk];
       out[3] = col3[kk];
@@ -65,6 +80,10 @@ int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
       for (BLASLONG r = 0; r < rem; ++r) {
           IFLOAT *col = src + (ib + r) * lda;
           for (BLASLONG kk = 0; kk < k; ++kk) {
+              if (m==2 && n==2 && k==2) {
+                  printf("OTCOPY_TAIL: r=%ld kk=%ld lda=%ld src_base=%p addr=%p val=%f out_addr=%p\n",
+                         r, kk, lda, src, (col + kk), bf16_to_float(*(uint16_t*)&col[kk]), out);
+              }
               *out++ = col[kk];
           }
       }

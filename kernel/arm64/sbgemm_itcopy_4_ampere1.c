@@ -11,10 +11,22 @@
 #define BFLOAT16
 #define SBGEMM
 #include "common.h"
+#include <stdio.h>
+
+static inline float bf16_to_float_local(uint16_t h) {
+  union { uint32_t u; float f; } v;
+  v.u = ((uint32_t)h) << 16;
+  return v.f;
+}
+#define bf16_to_float bf16_to_float_local
 
 int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG lda, IFLOAT *dst) {
-  // m is K
-  // n is N
+  static int debug_print = 0;
+  if (!debug_print) {
+      printf("ITCOPY (itcopy file) called m=%ld n=%ld lda=%ld\n", m, n, lda);
+      debug_print = 1;
+  }
+  
   BLASLONG k = m;
   BLASLONG n4 = n >> 2;
   BLASLONG rem = n & 3;
@@ -22,15 +34,15 @@ int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG lda, IFLOAT *dst) {
   for (BLASLONG jb = 0; jb < n4; ++jb) {
     IFLOAT *out = dst + jb * (k * 4);
     
-    // Pack 4 columns of B (Rows of B^T) interleaved
-    // For each K, store B(k, 0..3).
-    // src is Col Major B^T.
-    // B(k, j) is at src + k*lda + j.
-    
     for (BLASLONG kk = 0; kk < k; kk += 2) {
       IFLOAT *ptr = src + jb * 4 + kk * lda;
       IFLOAT *ptr_next = ptr + lda;
       
+      if (m==2 && n==2) {
+          printf("ITCOPY_MAIN: jb=%ld kk=%ld ptr_val=%f ptr_next_val=%f\n",
+                 jb, kk, bf16_to_float(*(uint16_t*)&ptr[0]), bf16_to_float(*(uint16_t*)&ptr_next[0]));
+      }
+
       // B(k, 0), B(k+1, 0)
       out[0] = ptr[0];
       out[1] = (kk + 1 < k) ? ptr_next[0] : 0;
@@ -57,6 +69,10 @@ int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG lda, IFLOAT *dst) {
       for (BLASLONG c = 0; c < rem; ++c) {
           IFLOAT *col_ptr = src + (jb + c);
           for (BLASLONG kk = 0; kk < k; ++kk) {
+              if (m==2 && n==2 && k==2) { // 2x2x2 case
+                  printf("ITCOPY_TAIL_REM: col=%ld kk=%ld lda=%ld src_base=%p addr=%p val=%f out_addr=%p\n", 
+                         c, kk, lda, src, (col_ptr + kk * lda), bf16_to_float(*(uint16_t*)&(col_ptr[kk * lda])), out);
+              }
               *out++ = *(col_ptr + kk * lda);
           }
       }

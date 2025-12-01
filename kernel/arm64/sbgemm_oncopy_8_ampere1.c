@@ -9,16 +9,21 @@
 #define BFLOAT16
 #define SBGEMM
 #include "common.h"
+#include <stdio.h>
+
+static inline float bf16_to_float_local(uint16_t h) {
+  union { uint32_t u; float f; } v;
+  v.u = ((uint32_t)h) << 16;
+  return v.f;
+}
+#define bf16_to_float bf16_to_float_local
 
 int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
-  // OpenBLAS standard for COPY:
-  // m = rows of matrix to be packed
-  // n = columns of matrix to be packed
-  // src = source buffer
-  // ldb = stride of source (lda)
-  // dst = dest buffer
-  
-  // For ONCOPY (Normal A): m=M, n=K.
+  static int debug_print = 0;
+  if (!debug_print) {
+      printf("ONCOPY/INCOPY (oncopy file) called m=%ld n=%ld lda=%ld\n", m, n, ldb);
+      debug_print = 1;
+  }
   
   BLASLONG k = n;
   BLASLONG lda = ldb;
@@ -36,6 +41,12 @@ int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
       IFLOAT *ptr1 = ptr0 + lda;
       IFLOAT *ptr2 = ptr1 + lda;
       IFLOAT *ptr3 = ptr2 + lda;
+
+      if (m==2 && n==2) {
+          printf("ONCOPY_MAIN: ib=%ld kk=%ld A0_val=%f A1_val=%f A2_val=%f A3_val=%f\n",
+                 ib, kk, bf16_to_float(*(uint16_t*)&ptr0[0]), bf16_to_float(*(uint16_t*)&ptr1[0]),
+                 bf16_to_float(*(uint16_t*)&ptr2[0]), bf16_to_float(*(uint16_t*)&ptr3[0]));
+      }
 
       // Row 0 (offset 0)
       out[0] = ptr0[0]; out[1] = ptr1[0]; out[2] = ptr2[0]; out[3] = ptr3[0];
@@ -77,6 +88,10 @@ int CNAME(BLASLONG m, BLASLONG n, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {
           IFLOAT *row_ptr = src + (ib + r);
           for (BLASLONG kk = 0; kk < k; ++kk) {
               IFLOAT val = *(row_ptr + kk * lda);
+              if (m==2 && n==2 && k==2) { // 2x2x2 case
+                  printf("ONCOPY_TAIL: r=%ld kk=%ld lda=%ld src_base=%p addr=%p val=%f out_addr=%p\n", 
+                         r, kk, lda, src, (row_ptr + kk * lda), bf16_to_float(*(uint16_t*)&val), out);
+              }
               *out++ = val;
           }
       }
