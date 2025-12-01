@@ -111,8 +111,10 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
           float tmp23[4];                                     \
           vst1q_f32(tmp01, acc01);                            \
           vst1q_f32(tmp23, acc23);                            \
-          tmp01[0] += a_f * b0; tmp01[1] += a_f * b1;         \
-          tmp23[0] += a_f * b2; tmp23[1] += a_f * b3;         \
+          tmp01[0] += a_f * b0;                               \
+          tmp01[2] += a_f * b1;                               \
+          tmp23[0] += a_f * b2;                               \
+          tmp23[2] += a_f * b3;                               \
           acc01 = vld1q_f32(tmp01);                           \
           acc23 = vld1q_f32(tmp23);                           \
         }
@@ -300,11 +302,7 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
           acc23 = vld1q_f32(tmp23);
         }
 
-        float32x4_t cvec = vdupq_n_f32(0);
-        cvec = vsetq_lane_f32(vgetq_lane_f32(acc01, 0), cvec, 0);
-        cvec = vsetq_lane_f32(vgetq_lane_f32(acc01, 1), cvec, 1);
-        cvec = vsetq_lane_f32(vgetq_lane_f32(acc23, 0), cvec, 2);
-        cvec = vsetq_lane_f32(vgetq_lane_f32(acc23, 1), cvec, 3);
+        float32x4_t cvec = vpaddq_f32(acc01, acc23);
         cvec = vmulq_f32(cvec, alpha);
         float out0 = vgetq_lane_f32(cvec, 0);
         float out1 = vgetq_lane_f32(cvec, 1);
