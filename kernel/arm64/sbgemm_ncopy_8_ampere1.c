@@ -5,6 +5,7 @@
  *  for kk in 0..K-1 step 4:
  *    store B[kk:kk+3, col0], then col1, col2, col3  (16 bf16).
  ***************************************************************************/
+#define SBGEMM
 #include "common.h"
 
 int CNAME(BLASLONG n, BLASLONG k, IFLOAT *src, BLASLONG ldb, IFLOAT *dst) {

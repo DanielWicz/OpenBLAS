@@ -6,6 +6,7 @@
  * Output layout (Interleaved K=4):
  *  Col0[0..3], Col1[0..3] ...
  ***************************************************************************/
+#define SBGEMM
 #include "common.h"
 
 int CNAME(BLASLONG n, BLASLONG k, IFLOAT *src, BLASLONG lda, IFLOAT *dst) {

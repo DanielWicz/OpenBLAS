@@ -8,6 +8,7 @@
  *      Row0[kk..kk+3], Row1[kk..kk+3] ... Row7[kk..kk+3]
  ***************************************************************************/
 
+#define SBGEMM
 #include "common.h"
 #include <arm_neon.h>
 
