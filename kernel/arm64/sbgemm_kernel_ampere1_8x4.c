@@ -94,13 +94,14 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
       }
 
       // Store accumulators (only lanes 0/1 carry cols 0/1 and 2/3)
-      float32x2_t c01, c23;
+      float32x2_t sum01, sum23;
       float32x4_t cvec;
       float out0, out1, out2, out3;
 
       // row 0..7
-      c01 = vget_low_f32(acc01_r0); c23 = vget_low_f32(acc23_r0);
-      cvec = vmulq_f32(vcombine_f32(c01, c23), alpha);
+      sum01 = vpadd_f32(vget_low_f32(acc01_r0), vget_high_f32(acc01_r0)); // col0, col1
+      sum23 = vpadd_f32(vget_low_f32(acc23_r0), vget_high_f32(acc23_r0)); // col2, col3
+      cvec = vmulq_f32(vcombine_f32(sum01, sum23), alpha);
       out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
       out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
 #ifdef BGEMM
@@ -115,8 +116,9 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
       pc[3 * ldc]       += out3;
 #endif
 
-      c01 = vget_low_f32(acc01_r1); c23 = vget_low_f32(acc23_r1);
-      cvec = vmulq_f32(vcombine_f32(c01, c23), alpha);
+      sum01 = vpadd_f32(vget_low_f32(acc01_r1), vget_high_f32(acc01_r1));
+      sum23 = vpadd_f32(vget_low_f32(acc23_r1), vget_high_f32(acc23_r1));
+      cvec = vmulq_f32(vcombine_f32(sum01, sum23), alpha);
       out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
       out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
 #ifdef BGEMM
@@ -131,8 +133,9 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
       pc[1 + 3 * ldc]   += out3;
 #endif
 
-      c01 = vget_low_f32(acc01_r2); c23 = vget_low_f32(acc23_r2);
-      cvec = vmulq_f32(vcombine_f32(c01, c23), alpha);
+      sum01 = vpadd_f32(vget_low_f32(acc01_r2), vget_high_f32(acc01_r2));
+      sum23 = vpadd_f32(vget_low_f32(acc23_r2), vget_high_f32(acc23_r2));
+      cvec = vmulq_f32(vcombine_f32(sum01, sum23), alpha);
       out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
       out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
 #ifdef BGEMM
@@ -147,8 +150,9 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
       pc[2 + 3 * ldc]   += out3;
 #endif
 
-      c01 = vget_low_f32(acc01_r3); c23 = vget_low_f32(acc23_r3);
-      cvec = vmulq_f32(vcombine_f32(c01, c23), alpha);
+      sum01 = vpadd_f32(vget_low_f32(acc01_r3), vget_high_f32(acc01_r3));
+      sum23 = vpadd_f32(vget_low_f32(acc23_r3), vget_high_f32(acc23_r3));
+      cvec = vmulq_f32(vcombine_f32(sum01, sum23), alpha);
       out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
       out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
 #ifdef BGEMM
@@ -163,8 +167,9 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
       pc[3 + 3 * ldc]   += out3;
 #endif
 
-      c01 = vget_low_f32(acc01_r4); c23 = vget_low_f32(acc23_r4);
-      cvec = vmulq_f32(vcombine_f32(c01, c23), alpha);
+      sum01 = vpadd_f32(vget_low_f32(acc01_r4), vget_high_f32(acc01_r4));
+      sum23 = vpadd_f32(vget_low_f32(acc23_r4), vget_high_f32(acc23_r4));
+      cvec = vmulq_f32(vcombine_f32(sum01, sum23), alpha);
       out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
       out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
 #ifdef BGEMM
@@ -179,8 +184,9 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
       pc[4 + 3 * ldc]   += out3;
 #endif
 
-      c01 = vget_low_f32(acc01_r5); c23 = vget_low_f32(acc23_r5);
-      cvec = vmulq_f32(vcombine_f32(c01, c23), alpha);
+      sum01 = vpadd_f32(vget_low_f32(acc01_r5), vget_high_f32(acc01_r5));
+      sum23 = vpadd_f32(vget_low_f32(acc23_r5), vget_high_f32(acc23_r5));
+      cvec = vmulq_f32(vcombine_f32(sum01, sum23), alpha);
       out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
       out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
 #ifdef BGEMM
@@ -195,8 +201,9 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
       pc[5 + 3 * ldc]   += out3;
 #endif
 
-      c01 = vget_low_f32(acc01_r6); c23 = vget_low_f32(acc23_r6);
-      cvec = vmulq_f32(vcombine_f32(c01, c23), alpha);
+      sum01 = vpadd_f32(vget_low_f32(acc01_r6), vget_high_f32(acc01_r6));
+      sum23 = vpadd_f32(vget_low_f32(acc23_r6), vget_high_f32(acc23_r6));
+      cvec = vmulq_f32(vcombine_f32(sum01, sum23), alpha);
       out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
       out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
 #ifdef BGEMM
@@ -211,8 +218,9 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
       pc[6 + 3 * ldc]   += out3;
 #endif
 
-      c01 = vget_low_f32(acc01_r7); c23 = vget_low_f32(acc23_r7);
-      cvec = vmulq_f32(vcombine_f32(c01, c23), alpha);
+      sum01 = vpadd_f32(vget_low_f32(acc01_r7), vget_high_f32(acc01_r7));
+      sum23 = vpadd_f32(vget_low_f32(acc23_r7), vget_high_f32(acc23_r7));
+      cvec = vmulq_f32(vcombine_f32(sum01, sum23), alpha);
       out0 = vgetq_lane_f32(cvec, 0); out1 = vgetq_lane_f32(cvec, 1);
       out2 = vgetq_lane_f32(cvec, 2); out3 = vgetq_lane_f32(cvec, 3);
 #ifdef BGEMM
@@ -252,9 +260,9 @@ int CNAME(BLASLONG m, BLASLONG n, BLASLONG k, FLOAT alpha_in,
           acc23 = vbfdotq_f32(acc23, a8, b23);
         }
 
-        float32x2_t c01 = vget_low_f32(acc01);
-        float32x2_t c23 = vget_low_f32(acc23);
-        float32x4_t cvec = vmulq_f32(vcombine_f32(c01, c23), alpha);
+        float32x2_t sum01 = vpadd_f32(vget_low_f32(acc01), vget_high_f32(acc01));
+        float32x2_t sum23 = vpadd_f32(vget_low_f32(acc23), vget_high_f32(acc23));
+        float32x4_t cvec = vmulq_f32(vcombine_f32(sum01, sum23), alpha);
         float out0 = vgetq_lane_f32(cvec, 0);
         float out1 = vgetq_lane_f32(cvec, 1);
         float out2 = vgetq_lane_f32(cvec, 2);
