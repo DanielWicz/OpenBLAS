@@ -224,18 +224,42 @@ static inline int get_gemm_optimal_nthreads_neoversev2(double MNK, int ncpu) {
 }
 #endif
 
+#if defined(DYNAMIC_ARCH) || defined(AMPERE1)
+/* AmpereOne: aggressively scale thread count to keep 192-384 cores busy.
+ * Thresholds are lower than Neoverse V1/V2 because the OoO window and 2 MB L2
+ * hide copy overhead well, and memory channels are plentiful (8-12x DDR5). */
+static inline int get_gemm_optimal_nthreads_ampere1(double MNK, int ncpu) {
+  return
+      MNK < 262144.0        ? 1
+    : MNK < 8000000.0       ? MIN(ncpu, 12)
+    : MNK < 50000000.0      ? MIN(ncpu, 32)
+    : MNK < 200000000.0     ? MIN(ncpu, 128)
+    : MNK < 500000000.0     ? MIN(ncpu, 192)
+    : ncpu;
+}
+#endif
+
 static inline int get_gemm_optimal_nthreads(double MNK) {
   int ncpu = num_cpu_avail(3);
-#if defined(NEOVERSEV1) && !defined(COMPLEX) && !defined(DOUBLE) && !defined(BFLOAT16) && !defined(HFLOAT16)
+#if defined(AMPERE1)
+  return get_gemm_optimal_nthreads_ampere1(MNK, ncpu);
+#elif defined(NEOVERSEV1) && !defined(COMPLEX) && !defined(DOUBLE) && !defined(BFLOAT16) && !defined(HFLOAT16)
   return get_gemm_optimal_nthreads_neoversev1(MNK, ncpu);
 #elif defined(NEOVERSEV2) && !defined(COMPLEX) && !defined(DOUBLE) && !defined(BFLOAT16) && !defined(HFLOAT16)
   return get_gemm_optimal_nthreads_neoversev2(MNK, ncpu);
 #elif defined(DYNAMIC_ARCH) && !defined(COMPLEX) && !defined(DOUBLE) && !defined(BFLOAT16) && !defined(HFLOAT16)
+  if (strcmp(gotoblas_corename(), "ampere1") == 0 || strcmp(gotoblas_corename(), "ampere1a") == 0) {
+    return get_gemm_optimal_nthreads_ampere1(MNK, ncpu);
+  }
   if (strcmp(gotoblas_corename(), "neoversev1") == 0) {
     return get_gemm_optimal_nthreads_neoversev1(MNK, ncpu);
   }
   if (strcmp(gotoblas_corename(), "neoversev2") == 0) {
     return get_gemm_optimal_nthreads_neoversev2(MNK, ncpu);
+  }
+#elif defined(DYNAMIC_ARCH)
+  if (strcmp(gotoblas_corename(), "ampere1") == 0 || strcmp(gotoblas_corename(), "ampere1a") == 0) {
+    return get_gemm_optimal_nthreads_ampere1(MNK, ncpu);
   }
 #endif
   if ( MNK <= (SMP_THRESHOLD_MIN  * (double) GEMM_MULTITHREAD_THRESHOLD) ) {

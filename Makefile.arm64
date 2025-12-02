@@ -226,8 +226,8 @@ endif
 
 # Detect Ampere AmpereOne(ampere1,ampere1a) processors.
 ifeq ($(CORE), AMPERE1)
-# Allow scaling on 192–384 core parts regardless of build-host core count.
-NUM_THREADS ?= 256
+# Allow scaling on 192-384 (and future >384) core parts regardless of build-host core count.
+NUM_THREADS ?= 512
 ifeq (1, $(filter 1,$(GCCVERSIONGTEQ12) $(ISCLANG)))
 CCOMMON_OPT += -march=armv8.6-a+crypto+crc+fp16+bf16+dotprod+sha3+rng
 ifneq ($(F_COMPILER), NAG)
