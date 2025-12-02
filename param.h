@@ -3712,9 +3712,9 @@ is a big desktop or server with abundant cache rather than a phone or embedded d
 #elif defined(AMPERE1)
 
 #if defined(XDOUBLE) || defined(DOUBLE)
-#define SWITCH_RATIO            8
+#define SWITCH_RATIO            6   /* encourage thread fan-out for small/medium tiles */
 #else
-#define SWITCH_RATIO            8   /* lower threshold to keep >192 threads busy on AmpereOne */
+#define SWITCH_RATIO            4   /* aggressively split rows to fill 192+ cores */
 #endif
 
 #define SGEMM_DEFAULT_UNROLL_M  16

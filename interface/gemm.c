@@ -226,14 +226,16 @@ static inline int get_gemm_optimal_nthreads_neoversev2(double MNK, int ncpu) {
 
 #if defined(DYNAMIC_ARCH) || defined(AMPERE1)
 /* AmpereOne: aggressively scale thread count to keep 192-384 cores busy.
- * Thresholds are lower than Neoverse V1/V2 because the OoO window and 2 MB L2
- * hide copy overhead well, and memory channels are plentiful (8-12x DDR5). */
+ * Thresholds start lower to parallelize small/medium matrices; OoO + 2 MB L2
+ * and ample DDR5 bandwidth hide packing overhead. */
 static inline int get_gemm_optimal_nthreads_ampere1(double MNK, int ncpu) {
   return
-      MNK < 262144.0        ? 1
-    : MNK < 8000000.0       ? MIN(ncpu, 12)
-    : MNK < 50000000.0      ? MIN(ncpu, 32)
-    : MNK < 200000000.0     ? MIN(ncpu, 128)
+      MNK < 32768.0         ? 1                      /* <32^3: stay serial */
+    : MNK < 500000.0        ? MIN(ncpu, 8)           /* ~64^3 */
+    : MNK < 4000000.0       ? MIN(ncpu, 16)          /* ~128^3 */
+    : MNK < 20000000.0      ? MIN(ncpu, 48)          /* ~270^3 */
+    : MNK < 80000000.0      ? MIN(ncpu, 96)          /* ~430^3 */
+    : MNK < 200000000.0     ? MIN(ncpu, 160)         /* ~584^3 */
     : MNK < 500000000.0     ? MIN(ncpu, 192)
     : ncpu;
 }
