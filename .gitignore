@@ -118,3 +118,4 @@ CMakeCache.txt
 CMakeFiles/*
 .vscode
 **/__pycache__
+bench_results/
