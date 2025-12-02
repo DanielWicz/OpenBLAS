@@ -5,7 +5,8 @@
 set -euo pipefail
 
 CALLER_DIR="$(pwd)"
-TOP_DIR="$(git -C "${CALLER_DIR}" rev-parse --show-toplevel 2>/dev/null || cd "${CALLER_DIR}" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TOP_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 BRANCH="${1:-ampereoneopt}"
 SINCE="${SINCE:-24 hours ago}"
 SIZES="${SIZES:-512 2048 8192}"
