@@ -35,7 +35,7 @@ RESULT_DIR="${TOP_DIR}/${RESULT_ROOT}/${TS}"
 mkdir -p "${RESULT_DIR}"
 
 echo "[bench] collecting commits from '${BRANCH}' since '${SINCE}'"
-mapfile -t commits < <(cd "${ROOT_DIR}" && git rev-list --reverse --since="${SINCE}" "${BRANCH}")
+mapfile -t commits < <(cd "${TOP_DIR}" && git rev-list --reverse --since="${SINCE}" "${BRANCH}")
 
 if [[ "${#commits[@]}" -eq 0 ]]; then
   echo "No commits found in the requested window." >&2
@@ -44,8 +44,8 @@ fi
 
 # Include one commit before the window for comparison.
 first="${commits[0]}"
-if (cd "${ROOT_DIR}" && git rev-parse --verify "${first}^" >/dev/null 2>&1); then
-  parent_before="$(cd "${ROOT_DIR}" && git rev-parse "${first}^")"
+if (cd "${TOP_DIR}" && git rev-parse --verify "${first}^" >/dev/null 2>&1); then
+  parent_before="$(cd "${TOP_DIR}" && git rev-parse "${first}^")"
   commits=("${parent_before}" "${commits[@]}")
 fi
 
@@ -56,7 +56,7 @@ fi
   echo "Sizes: ${SIZES}"
   echo "Commits:"
   for c in "${commits[@]}"; do
-    (cd "${ROOT_DIR}" && git show -s --format='%h %ad %s' --date=short "${c}")
+    (cd "${TOP_DIR}" && git show -s --format='%h %ad %s' --date=short "${c}")
   done
 } | tee "${RESULT_DIR}/overview.txt"
 
@@ -64,7 +64,7 @@ for c in "${commits[@]}"; do
   short="${c:0:12}"
   wt="$(mktemp -d "${RESULT_DIR}/wt-${short}-XXXX")"
   echo "[bench] preparing worktree ${wt} for ${short}"
-  (cd "${ROOT_DIR}" && git worktree add --quiet "${wt}" "${c}")
+  (cd "${TOP_DIR}" && git worktree add --quiet "${wt}" "${c}")
 
   pushd "${wt}" >/dev/null
 
@@ -90,7 +90,7 @@ for c in "${commits[@]}"; do
   done
 
   popd >/dev/null
-  (cd "${ROOT_DIR}" && git worktree remove --force "${wt}")
+  (cd "${TOP_DIR}" && git worktree remove --force "${wt}")
 done
 
 echo "[bench] done. Results stored in ${RESULT_DIR}"
