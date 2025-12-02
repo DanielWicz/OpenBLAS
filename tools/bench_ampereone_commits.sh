@@ -73,7 +73,7 @@ for c in "${commits[@]}"; do
   make -C benchmark -j"${JOBS}" goto
 
   printf "Commit: %s\n" "${c}" > "${RESULT_DIR}/${short}.info"
-  (cd "${ROOT_DIR}" && git show -s --format='Hash: %H%nAuthor: %an <%ae>%nDate: %ad%nSubject: %s' "${c}") >> "${RESULT_DIR}/${short}.info"
+  (cd "${TOP_DIR}" && git show -s --format='Hash: %H%nAuthor: %an <%ae>%nDate: %ad%nSubject: %s' "${c}") >> "${RESULT_DIR}/${short}.info"
   {
     echo "THREADS=${THREADS}"
     echo "SIZES=${SIZES}"
