@@ -4,10 +4,12 @@
 
 set -euo pipefail
 
+ROOT_DIR="$(pwd)"
 BRANCH="${1:-ampereoneopt}"
 SINCE="${SINCE:-24 hours ago}"
 SIZES="${SIZES:-512 2048 8192}"
 LOOPS="${LOOPS:-5}"
+trap 'cd "${ROOT_DIR}"' EXIT
 
 # Detect usable parallelism
 detect_jobs() {
@@ -24,11 +26,11 @@ THREADS="${THREADS:-$JOBS}"
 
 RESULT_ROOT="${RESULT_ROOT:-bench_results}"
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
-RESULT_DIR="${RESULT_ROOT}/${TS}"
+RESULT_DIR="${ROOT_DIR}/${RESULT_ROOT}/${TS}"
 mkdir -p "${RESULT_DIR}"
 
 echo "[bench] collecting commits from '${BRANCH}' since '${SINCE}'"
-mapfile -t commits < <(git rev-list --reverse --since="${SINCE}" "${BRANCH}")
+mapfile -t commits < <(cd "${ROOT_DIR}" && git rev-list --reverse --since="${SINCE}" "${BRANCH}")
 
 if [[ "${#commits[@]}" -eq 0 ]]; then
   echo "No commits found in the requested window." >&2
@@ -37,8 +39,8 @@ fi
 
 # Include one commit before the window for comparison.
 first="${commits[0]}"
-if git rev-parse --verify "${first}^" >/dev/null 2>&1; then
-  parent_before="$(git rev-parse "${first}^")"
+if (cd "${ROOT_DIR}" && git rev-parse --verify "${first}^" >/dev/null 2>&1); then
+  parent_before="$(cd "${ROOT_DIR}" && git rev-parse "${first}^")"
   commits=("${parent_before}" "${commits[@]}")
 fi
 
@@ -49,7 +51,7 @@ fi
   echo "Sizes: ${SIZES}"
   echo "Commits:"
   for c in "${commits[@]}"; do
-    git show -s --format='%h %ad %s' --date=short "${c}"
+    (cd "${ROOT_DIR}" && git show -s --format='%h %ad %s' --date=short "${c}")
   done
 } | tee "${RESULT_DIR}/overview.txt"
 
@@ -57,7 +59,7 @@ for c in "${commits[@]}"; do
   short="${c:0:12}"
   wt="$(mktemp -d "${RESULT_DIR}/wt-${short}-XXXX")"
   echo "[bench] preparing worktree ${wt} for ${short}"
-  git worktree add --quiet "${wt}" "${c}"
+  (cd "${ROOT_DIR}" && git worktree add --quiet "${wt}" "${c}")
 
   pushd "${wt}" >/dev/null
 
@@ -66,7 +68,7 @@ for c in "${commits[@]}"; do
   make -C benchmark -j"${JOBS}" goto
 
   printf "Commit: %s\n" "${c}" > "${RESULT_DIR}/${short}.info"
-  git show -s --format='Hash: %H%nAuthor: %an <%ae>%nDate: %ad%nSubject: %s' "${c}" >> "${RESULT_DIR}/${short}.info"
+  (cd "${ROOT_DIR}" && git show -s --format='Hash: %H%nAuthor: %an <%ae>%nDate: %ad%nSubject: %s' "${c}") >> "${RESULT_DIR}/${short}.info"
   {
     echo "THREADS=${THREADS}"
     echo "SIZES=${SIZES}"
@@ -83,7 +85,7 @@ for c in "${commits[@]}"; do
   done
 
   popd >/dev/null
-  git worktree remove --force "${wt}"
+  (cd "${ROOT_DIR}" && git worktree remove --force "${wt}")
 done
 
 echo "[bench] done. Results stored in ${RESULT_DIR}"
