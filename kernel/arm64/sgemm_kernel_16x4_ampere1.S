@@ -1095,6 +1095,8 @@
 
 	prfm	PLDL1KEEP, [origPB]
 	prfm	PLDL1KEEP, [origPA]
+	prfm	PLDL2KEEP, [origPB, #256]
+	prfm	PLDL2KEEP, [origPA, #256]
 
 	fmov	alpha, s0
 

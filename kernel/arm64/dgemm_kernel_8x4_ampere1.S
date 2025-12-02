@@ -59,7 +59,7 @@
 
 #define A_PRE_SIZE	3072
 #define B_PRE_SIZE	512
-#define C_PRE_SIZE	192
+#define C_PRE_SIZE	256  // stream C four cache lines ahead to hide write-through DL1
 
 // 00 origM
 // 01 origN
@@ -880,6 +880,8 @@
 
 	prfm	PLDL1KEEP, [origPB]
 	prfm	PLDL1KEEP, [origPA]
+	prfm	PLDL2KEEP, [origPB, #256]
+	prfm	PLDL2KEEP, [origPA, #256]
 
 	fmov	alpha, d0
 
