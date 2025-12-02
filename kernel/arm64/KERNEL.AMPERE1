@@ -1,1 +1,7 @@
 include $(KERNELDIR)/KERNEL.NEOVERSEN1
+
+# AmpereOne overrides
+SGEMMKERNEL    = sgemm_kernel_16x4_ampere1.S
+SGEMM_BETA     = sgemm_beta.S
+DGEMMKERNEL    = dgemm_kernel_8x4_ampere1.S
+DGEMM_BETA     = dgemm_beta.S
