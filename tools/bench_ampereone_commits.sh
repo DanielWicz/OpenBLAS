@@ -4,12 +4,16 @@
 
 set -euo pipefail
 
-ROOT_DIR="$(pwd)"
+CALLER_DIR="$(pwd)"
+TOP_DIR="$(git -C "${CALLER_DIR}" rev-parse --show-toplevel 2>/dev/null || cd "${CALLER_DIR}" && pwd)"
 BRANCH="${1:-ampereoneopt}"
 SINCE="${SINCE:-24 hours ago}"
 SIZES="${SIZES:-512 2048 8192}"
 LOOPS="${LOOPS:-5}"
-trap 'cd "${ROOT_DIR}"' EXIT
+trap 'cd "${CALLER_DIR}"' EXIT
+
+# Always operate from repo root so relative paths work even when invoked in subdirs.
+cd "${TOP_DIR}"
 
 # Detect usable parallelism
 detect_jobs() {
@@ -26,7 +30,7 @@ THREADS="${THREADS:-$JOBS}"
 
 RESULT_ROOT="${RESULT_ROOT:-bench_results}"
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
-RESULT_DIR="${ROOT_DIR}/${RESULT_ROOT}/${TS}"
+RESULT_DIR="${TOP_DIR}/${RESULT_ROOT}/${TS}"
 mkdir -p "${RESULT_DIR}"
 
 echo "[bench] collecting commits from '${BRANCH}' since '${SINCE}'"
