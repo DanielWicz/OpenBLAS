@@ -22,9 +22,9 @@ static inline size_t openblas_bigvec_threshold_bytes(void) {
         if (cached == 0) cached = (size_t)(L3_SIZE / 16);
 #endif
         if (cached == 0) cached = (size_t)131072; /* 128KB default */
-        /* Clamp to a sensible window: 64KB .. 128KB */
-        if (cached < (size_t)65536) cached = (size_t)65536;
-        if (cached > (size_t)131072) cached = (size_t)131072;
+        /* Clamp to a wider window: 32KB .. 256KB */
+        if (cached < (size_t)32768)  cached = (size_t)32768;
+        if (cached > (size_t)262144) cached = (size_t)262144;
     }
     return cached;
 }
