@@ -42,6 +42,22 @@ ifeq ($(ARCH), x86)
 SUPPORT_GEMM3M = 1
 endif
 
+ifeq ($(USE_OPENMP), 1)
+deadlock_nested_omp : deadlock_nested_omp.c test_helpers.h ../$(LIBNAME)
+	$(CC) $(CLDFLAGS) -o deadlock_nested_omp deadlock_nested_omp.c ../$(LIBNAME) $(EXTRALIB) $(CEXTRALIB)
+
+ifneq ($(CROSS), 1)
+all :: deadlock_nested_omp_run
+deadlock_nested_omp_run: deadlock_nested_omp
+	OMP_NUM_THREADS=4,2 OMP_NESTED=TRUE OMP_MAX_ACTIVE_LEVELS=2 ./deadlock_nested_omp
+endif
+else
+deadlock_nested_omp :
+	@echo "Skipping deadlock_nested_omp (built without OpenMP)"
+deadlock_nested_omp_run : deadlock_nested_omp
+	@echo "Skipping deadlock_nested_omp_run (built without OpenMP)"
+endif
+
 ifeq ($(ARCH), x86_64)
 SUPPORT_GEMM3M = 1
 endif
@@ -475,8 +491,6 @@ zblat3_3m : zblat3_3m.$(SUFFIX) ../$(LIBNAME)
 	$(FC) $(FLDFLAGS) -o zblat3_3m zblat3_3m.$(SUFFIX) ../$(LIBNAME) $(EXTRALIB) $(CEXTRALIB)
 endif
 
-
-
 clean:
 	@rm -f *.$(SUFFIX) *.$(PSUFFIX) gmon.$(SUFFIX)ut *.SUMM *.cxml *.exe *.pdb *.dwf \
 	sblat1 dblat1 cblat1 zblat1 \
@@ -486,7 +500,7 @@ clean:
 	sblat2p dblat2p cblat2p zblat2p \
 	sblat3p dblat3p cblat3p zblat3p \
 	zblat3_3m zblat3_3mp \
-	cblat3_3m cblat3_3mp \
+	cblat3_3m cblat3_3mp deadlock_nested_omp \
 	*.stackdump *.dll
 
 libs:
