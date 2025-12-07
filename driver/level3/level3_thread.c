@@ -570,10 +570,18 @@ static int gemm_driver(blas_arg_t *args, BLASLONG *range_m, BLASLONG
 #ifdef USE_OPENMP
   extern int exec_blas_dynamic(BLASLONG num, blas_queue_t *queue);
 #if defined(HAVE_C11)
+  /* Lazily seed the credit counter that guards the shared GEMM buffer pool.
+   * atomic_flag keeps initialization lock-free while still thread-safe. */
+  static atomic_int parallel_section_left;
+  static atomic_flag parallel_pool_init = ATOMIC_FLAG_INIT;
+
+  if (!atomic_flag_test_and_set_explicit(&parallel_pool_init, memory_order_acq_rel)) {
+    atomic_store_explicit(&parallel_section_left, MAX_PARALLEL_NUMBER, memory_order_relaxed);
+  }
+
   /* Track how many BLAS sections may still borrow the pooled buffers.
    * atomic avoids global locks when many OpenMP instances call GEMM concurrently.
    */
-  static atomic_int parallel_section_left = ATOMIC_VAR_INIT(MAX_PARALLEL_NUMBER);
 #else
   static omp_lock_t level3_lock, critical_section_lock;
   static volatile BLASULONG init_lock = 0, omp_lock_initialized = 0,
@@ -654,17 +662,22 @@ static int gemm_driver(blas_arg_t *args, BLASLONG *range_m, BLASLONG
    * Optimization for nested parallelism and high concurrency:
    * Try to acquire a slot in the fixed thread buffer pool without blocking
    * other OpenMP teams. If no slot is available, fall back to dynamic buffers
-   * to avoid serialization/deadlocks when NUM_PARALLEL is exceeded.
-   */
+ * to avoid serialization/deadlocks when NUM_PARALLEL is exceeded.
+  */
 #if defined(HAVE_C11)
-  int expected = atomic_load(&parallel_section_left);
-  while (expected > 0 && !reserved_slot) {
-    if (atomic_compare_exchange_weak(&parallel_section_left, &expected, expected - 1)) {
-      reserved_slot = 1;
+  int expected;
+  do {
+    expected = atomic_load_explicit(&parallel_section_left, memory_order_relaxed);
+    if (expected <= 0) {
+      use_dynamic = 1;
       break;
     }
-  }
-  if (!reserved_slot) use_dynamic = 1;
+  } while (!atomic_compare_exchange_weak_explicit(&parallel_section_left,
+                                                  &expected,
+                                                  expected - 1,
+                                                  memory_order_acquire,
+                                                  memory_order_relaxed));
+  if (!use_dynamic) reserved_slot = 1;
 #else
   if (omp_test_lock(&level3_lock)) {
       omp_set_lock(&critical_section_lock);
@@ -830,7 +843,8 @@ static int gemm_driver(blas_arg_t *args, BLASLONG *range_m, BLASLONG
 #ifdef USE_OPENMP
 #if defined(HAVE_C11)
   if (reserved_slot) {
-    atomic_fetch_add(&parallel_section_left, 1);
+    /* Return the borrowed pool slot so other OpenMP teams can reuse it. */
+    atomic_fetch_add_explicit(&parallel_section_left, 1, memory_order_release);
   }
 #else
   if (reserved_slot) {

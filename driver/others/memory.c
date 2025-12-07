@@ -1127,6 +1127,7 @@ static BLASULONG base_address      = BASE_ADDRESS;
 
 #ifdef HAVE_C11
 static _Atomic int memory_initialized = 0;
+static atomic_flag memory_init_guard = ATOMIC_FLAG_INIT;
 #else
 static volatile int memory_initialized = 0;
 #endif
@@ -1170,6 +1171,30 @@ static void blas_memory_init(void){
 #endif /* defined(SMP) */
 }
 
+/* Shared initialization sequence used by both the OpenMP and pthread paths.
+ * The caller is responsible for publishing memory_initialized once this
+ * routine completes. */
+static inline void blas_memory_init_sequence(void){
+      blas_memory_init();
+#ifdef DYNAMIC_ARCH
+      gotoblas_dynamic_init();
+#endif
+
+#if defined(SMP) && defined(OS_LINUX) && !defined(NO_AFFINITY)
+      gotoblas_affinity_init();
+#endif
+
+#ifdef SMP
+      if (!blas_num_threads) blas_cpu_number = blas_get_cpu_number();
+#endif
+
+#if defined(ARCH_X86) || defined(ARCH_X86_64) || defined(ARCH_IA64) || defined(ARCH_MIPS64) || defined(ARCH_ARM64) || defined(ARCH_LOONGARCH64)
+#ifndef DYNAMIC_ARCH
+      blas_set_parameter();
+#endif
+#endif
+}
+
 void *blas_memory_alloc(int procpos){
 
   int position;
@@ -1205,46 +1230,39 @@ void *blas_memory_alloc(int procpos){
   struct alloc_t ** alloc_table;
 
 #if defined(SMP) && !defined(USE_OPENMP)
-int mi;
-LOCK_COMMAND(&alloc_lock);
-mi=memory_initialized;
-UNLOCK_COMMAND(&alloc_lock);
+  int mi;
+  LOCK_COMMAND(&alloc_lock);
+  mi = memory_initialized;
+  UNLOCK_COMMAND(&alloc_lock);
   if (!LIKELY_ONE(mi)) {
-#else
-  if (!LIKELY_ONE(memory_initialized)) {
-#endif
-#if defined(SMP) && !defined(USE_OPENMP)
     /* Only allow a single thread to initialize memory system */
     LOCK_COMMAND(&alloc_lock);
-
     if (!memory_initialized) {
-#endif
-      blas_memory_init();
-#ifdef DYNAMIC_ARCH
-      gotoblas_dynamic_init();
-#endif
-
-#if defined(SMP) && defined(OS_LINUX) && !defined(NO_AFFINITY)
-      gotoblas_affinity_init();
-#endif
-
-#ifdef SMP
-      if (!blas_num_threads) blas_cpu_number = blas_get_cpu_number();
-#endif
-
-#if defined(ARCH_X86) || defined(ARCH_X86_64) || defined(ARCH_IA64) || defined(ARCH_MIPS64) || defined(ARCH_ARM64) || defined(ARCH_LOONGARCH64)
-#ifndef DYNAMIC_ARCH
-      blas_set_parameter();
-#endif
-#endif
-
+      blas_memory_init_sequence();
       memory_initialized = 1;
-
-#if defined(SMP) && !defined(USE_OPENMP)
     }
     UNLOCK_COMMAND(&alloc_lock);
-#endif
   }
+#else
+#ifdef HAVE_C11
+  if (!atomic_load_explicit(&memory_initialized, memory_order_acquire)) {
+    /* Lock-free single-time initialization for OpenMP builds. */
+    if (!atomic_flag_test_and_set_explicit(&memory_init_guard, memory_order_acq_rel)) {
+      blas_memory_init_sequence();
+      atomic_store_explicit(&memory_initialized, 1, memory_order_release);
+    } else {
+      /* Another thread is still doing the one-time init; wait for it to publish. */
+      while (!atomic_load_explicit(&memory_initialized, memory_order_acquire)) {
+      }
+    }
+  }
+#else
+  if (!LIKELY_ONE(memory_initialized)) {
+      blas_memory_init_sequence();
+      memory_initialized = 1;
+  }
+#endif
+#endif
 
 #ifdef DEBUG
   printf("Alloc Start ...\n");
