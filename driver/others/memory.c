@@ -617,6 +617,10 @@ UNLOCK_COMMAND(&key_lock);
  if (!local_memory_table) {
 #endif /* defined(SMP) */
     local_memory_table = (struct alloc_t **)malloc(sizeof(struct alloc_t *) * NUM_BUFFERS);
+    if (!local_memory_table) {
+      fprintf(stderr, "OpenBLAS: unable to allocate TLS buffer table (NUM_BUFFERS=%d)\n", NUM_BUFFERS);
+      return NULL;
+    }
     memset(local_memory_table, 0, sizeof(struct alloc_t *) * NUM_BUFFERS);
 #if defined(SMP)
 #  if defined(OS_WINDOWS)
@@ -1152,8 +1156,16 @@ static void blas_memory_init(void){
 #if defined(SMP)
 #  if defined(OS_WINDOWS)
   local_storage_key = TlsAlloc();
+  if (local_storage_key == TLS_OUT_OF_INDEXES) {
+    fprintf(stderr, "OpenBLAS: TLS allocation failed, thread buffers unavailable\n");
+    local_storage_key = 0;
+  }
 #  else
-  pthread_key_create(&local_storage_key, blas_memory_cleanup);
+  int rc = pthread_key_create(&local_storage_key, blas_memory_cleanup);
+  if (rc != 0) {
+    fprintf(stderr, "OpenBLAS: pthread_key_create failed (%d), thread buffers unavailable\n", rc);
+    local_storage_key = 0;
+  }
 #  endif /* defined(OS_WINDOWS) */
 #endif /* defined(SMP) */
 }
@@ -1240,6 +1252,7 @@ UNLOCK_COMMAND(&alloc_lock);
 
   position = 0;
   alloc_table = get_memory_table();
+  if (alloc_table == NULL) goto error;
   do {
       if (!alloc_table[position] || !alloc_table[position]->used) goto allocation;
     position ++;
@@ -1315,12 +1328,16 @@ UNLOCK_COMMAND(&alloc_lock);
   return (void *)(((char *)alloc_info) + sizeof(struct alloc_t));
 
  error:
-  printf("OpenBLAS : Program will terminate because you tried to allocate too many TLS memory regions.\n");
-  printf("This library was built to support a maximum of %d threads - either rebuild OpenBLAS\n", NUM_BUFFERS);
-  printf("with a larger NUM_THREADS value or set the environment variable OPENBLAS_NUM_THREADS to\n");
-  printf("a sufficiently small number. This error typically occurs when the software that relies on\n");
-  printf("OpenBLAS calls BLAS functions from many threads in parallel, or when your computer has more\n");
-  printf("cpu cores than what OpenBLAS was configured to handle.\n"); 
+  if (alloc_table == NULL) {
+    fprintf(stderr, "OpenBLAS: TLS buffer allocation failed; cannot satisfy blas_memory_alloc request.\n");
+  } else {
+    printf("OpenBLAS : Program will terminate because you tried to allocate too many TLS memory regions.\n");
+    printf("This library was built to support a maximum of %d threads - either rebuild OpenBLAS\n", NUM_BUFFERS);
+    printf("with a larger NUM_THREADS value or set the environment variable OPENBLAS_NUM_THREADS to\n");
+    printf("a sufficiently small number. This error typically occurs when the software that relies on\n");
+    printf("OpenBLAS calls BLAS functions from many threads in parallel, or when your computer has more\n");
+    printf("cpu cores than what OpenBLAS was configured to handle.\n");
+  }
 
   return NULL;
 }

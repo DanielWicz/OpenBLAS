@@ -37,6 +37,10 @@
 /* or implied, of The University of Texas at Austin.                 */
 /*********************************************************************/
 
+#if defined(HAVE_C11)
+#include <stdatomic.h>
+#endif
+
 #ifndef CACHE_LINE_SIZE
 #define CACHE_LINE_SIZE 8
 #endif
@@ -565,6 +569,12 @@ static int gemm_driver(blas_arg_t *args, BLASLONG *range_m, BLASLONG
 
 #ifdef USE_OPENMP
   extern int exec_blas_dynamic(BLASLONG num, blas_queue_t *queue);
+#if defined(HAVE_C11)
+  /* Track how many BLAS sections may still borrow the pooled buffers.
+   * atomic avoids global locks when many OpenMP instances call GEMM concurrently.
+   */
+  static atomic_int parallel_section_left = ATOMIC_VAR_INIT(MAX_PARALLEL_NUMBER);
+#else
   static omp_lock_t level3_lock, critical_section_lock;
   static volatile BLASULONG init_lock = 0, omp_lock_initialized = 0,
                   parallel_section_left = MAX_PARALLEL_NUMBER;
@@ -584,6 +594,7 @@ static int gemm_driver(blas_arg_t *args, BLASLONG *range_m, BLASLONG
     blas_unlock(&init_lock);
     }
   }
+#endif
 #elif defined(OS_WINDOWS)
   CRITICAL_SECTION level3_lock;
   InitializeCriticalSection((PCRITICAL_SECTION)&level3_lock);
@@ -612,6 +623,7 @@ static int gemm_driver(blas_arg_t *args, BLASLONG *range_m, BLASLONG
   BLASLONG m, n, n_from, n_to;
   int mode;
   int use_dynamic = 0;
+  int reserved_slot = 0;
 #if defined(DYNAMIC_ARCH)
   int switch_ratio = gotoblas->switch_ratio;
 #else
@@ -640,14 +652,26 @@ static int gemm_driver(blas_arg_t *args, BLASLONG *range_m, BLASLONG
 #ifdef USE_OPENMP
   /*
    * Optimization for nested parallelism and high concurrency:
-   * Try to acquire a slot in the fixed thread buffer pool.
-   * If successful, use standard logic.
-   * If failed (pool exhausted), fallback to dynamic memory allocation (use_dynamic = 1)
-   * to avoid serialization/deadlocks.
+   * Try to acquire a slot in the fixed thread buffer pool without blocking
+   * other OpenMP teams. If no slot is available, fall back to dynamic buffers
+   * to avoid serialization/deadlocks when NUM_PARALLEL is exceeded.
    */
+#if defined(HAVE_C11)
+  int expected = atomic_load(&parallel_section_left);
+  while (expected > 0 && !reserved_slot) {
+    if (atomic_compare_exchange_weak(&parallel_section_left, &expected, expected - 1)) {
+      reserved_slot = 1;
+      break;
+    }
+  }
+  if (!reserved_slot) use_dynamic = 1;
+#else
   if (omp_test_lock(&level3_lock)) {
       omp_set_lock(&critical_section_lock);
-      parallel_section_left--;
+      if (parallel_section_left > 0) {
+        parallel_section_left--;
+        reserved_slot = 1;
+      }
       if(parallel_section_left != 0)
         omp_unset_lock(&level3_lock);
 
@@ -655,6 +679,7 @@ static int gemm_driver(blas_arg_t *args, BLASLONG *range_m, BLASLONG
   } else {
       use_dynamic = 1;
   }
+#endif
 
 #elif defined(OS_WINDOWS)
   EnterCriticalSection((PCRITICAL_SECTION)&level3_lock);
@@ -803,7 +828,12 @@ static int gemm_driver(blas_arg_t *args, BLASLONG *range_m, BLASLONG
 #endif
 
 #ifdef USE_OPENMP
-  if (!use_dynamic) {
+#if defined(HAVE_C11)
+  if (reserved_slot) {
+    atomic_fetch_add(&parallel_section_left, 1);
+  }
+#else
+  if (reserved_slot) {
     omp_set_lock(&critical_section_lock);
     parallel_section_left++;
 
@@ -812,6 +842,7 @@ static int gemm_driver(blas_arg_t *args, BLASLONG *range_m, BLASLONG
   
     omp_unset_lock(&critical_section_lock);
   }
+#endif
 
 #elif defined(OS_WINDOWS)
   LeaveCriticalSection((PCRITICAL_SECTION)&level3_lock);
@@ -881,6 +912,34 @@ int CNAME(blas_arg_t *args, BLASLONG *range_m, BLASLONG *range_n, IFLOAT *sa, IF
       nthreads_n *= div;
     }
   }
+
+#ifdef USE_OPENMP
+  /*
+   * When OpenBLAS is called from an outer OpenMP team (NUM_PARALLEL > 1
+   * scenario), clamp the inner GEMM team size so concurrent instances share
+   * the physical cores instead of oversubscribing them. This keeps the inner
+   * OpenMP parallel regions productive when many outer tasks call GEMM.
+   */
+  if (omp_in_parallel()) {
+    int outer_threads = omp_get_num_threads();
+    int cores = blas_cpu_number;
+    if (cores <= 0) cores = omp_get_max_threads();
+    if (outer_threads <= 0) outer_threads = 1;
+
+    int budget = cores / outer_threads;
+    if (budget < 1) budget = 1;
+
+    while (nthreads_m * nthreads_n > budget) {
+      if (nthreads_n > nthreads_m && nthreads_n > 1) {
+        nthreads_n = (nthreads_n + 1) / 2;
+      } else if (nthreads_m > 1) {
+        nthreads_m = (nthreads_m + 1) / 2;
+      } else {
+        break;
+      }
+    }
+  }
+#endif
 
   /* Execute serial or parallel computation */
   if (nthreads_m * nthreads_n <= 1) {
