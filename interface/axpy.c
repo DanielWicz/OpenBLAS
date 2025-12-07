@@ -38,8 +38,16 @@
 
 #include <stdio.h>
 #include "common.h"
+#include "bigvec.h"
 #ifdef FUNCTION_PROFILE
 #include "functable.h"
+#endif
+#if defined(SMP) && defined(_OPENMP)
+#include <omp.h>
+extern int omp_in_parallel(void);
+#endif
+#if defined(SMP) && defined(_OPENMP)
+extern int omp_in_parallel(void);
 #endif
 #if  defined(Z13)
 #define MULTI_THREAD_MINIMAL  200000
@@ -86,6 +94,30 @@ void CNAME(blasint n, FLOAT alpha, FLOAT *x, blasint incx, FLOAT *y, blasint inc
 
   if (incx < 0) x -= (n - 1) * incx;
   if (incy < 0) y -= (n - 1) * incy;
+
+#if defined(SMP) && defined(_OPENMP)
+  if (incx == 1 && incy == 1 &&
+      ((size_t)n * COMPSIZE * sizeof(FLOAT) > openblas_bigvec_threshold_bytes()) &&
+      !omp_in_parallel()) {
+    #pragma omp parallel
+    {
+      int tid = omp_get_thread_num();
+      int nth = omp_get_num_threads();
+      BLASLONG start = (n * tid) / nth;
+      BLASLONG end   = (n * (tid + 1)) / nth;
+      if (end > start) {
+        AXPYU_K(end - start, 0, 0, alpha,
+                x + start * COMPSIZE, 1,
+                y + start * COMPSIZE, 1,
+                NULL, 0);
+      }
+    }
+
+    FUNCTION_PROFILE_END(1, 2 * n, 2 * n);
+    IDEBUG_END;
+    return;
+  }
+#endif
 
 #ifdef SMP
   //disable multi-thread when incx==0 or incy==0

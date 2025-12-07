@@ -38,9 +38,15 @@
 
 #include <stdio.h>
 #include "common.h"
+#include "bigvec.h"
 #ifdef FUNCTION_PROFILE
 #include "functable.h"
 #endif
+#if defined(SMP) && defined(_OPENMP)
+#include <omp.h>
+extern int omp_in_parallel(void);
+#endif
+#include <math.h>
 
 #ifndef CBLAS
 
@@ -57,6 +63,29 @@ FLOATRET NAME(blasint *N, FLOAT *x, blasint *INCX){
   IDEBUG_START;
 
   FUNCTION_PROFILE_START();
+
+#if defined(SMP) && defined(_OPENMP)
+  if (incx == 1 &&
+      ((size_t)n * COMPSIZE * sizeof(FLOAT) > openblas_bigvec_threshold_bytes()) &&
+      !omp_in_parallel()) {
+    double sum = 0.0;
+#ifdef COMPLEX
+    #pragma omp parallel for reduction(+:sum) schedule(static)
+    for (BLASLONG i = 0; i < n; i++) {
+      BLASLONG base = i * COMPSIZE;
+      sum += fabs((double)x[base]) + fabs((double)x[base + 1]);
+    }
+#else
+    #pragma omp parallel for reduction(+:sum) schedule(static)
+    for (BLASLONG i = 0; i < n; i++) sum += fabs((double)x[i]);
+#endif
+    ret = (FLOATRET)sum;
+
+    FUNCTION_PROFILE_END(COMPSIZE, n, n);
+    IDEBUG_END;
+    return ret;
+  }
+#endif
 
   ret = (FLOATRET)ASUM_K(n, x, incx);
 
@@ -84,6 +113,29 @@ FLOAT CNAME(blasint n, FLOAT *x, blasint incx){
   IDEBUG_START;
 
   FUNCTION_PROFILE_START();
+
+#if defined(SMP) && defined(_OPENMP)
+  if (incx == 1 &&
+      ((size_t)n * COMPSIZE * sizeof(FLOAT) > openblas_bigvec_threshold_bytes()) &&
+      !omp_in_parallel()) {
+    double sum = 0.0;
+#ifdef COMPLEX
+    #pragma omp parallel for reduction(+:sum) schedule(static)
+    for (BLASLONG i = 0; i < n; i++) {
+      BLASLONG base = i * COMPSIZE;
+      sum += fabs((double)x[base]) + fabs((double)x[base + 1]);
+    }
+#else
+    #pragma omp parallel for reduction(+:sum) schedule(static)
+    for (BLASLONG i = 0; i < n; i++) sum += fabs((double)x[i]);
+#endif
+    ret = (FLOAT)sum;
+
+    FUNCTION_PROFILE_END(COMPSIZE, n, n);
+    IDEBUG_END;
+    return ret;
+  }
+#endif
 
   ret = ASUM_K(n, x, incx);
 

@@ -39,8 +39,13 @@
 
 #include <stdio.h>
 #include "common.h"
+#include "bigvec.h"
 #ifdef FUNCTION_PROFILE
 #include "functable.h"
+#endif
+#if defined(SMP) && defined(_OPENMP)
+#include <omp.h>
+extern int omp_in_parallel(void);
 #endif
 
 #ifndef CBLAS
@@ -81,6 +86,28 @@ void CNAME(blasint n, FLOAT alpha, FLOAT *x, blasint incx){
   IDEBUG_START;
 
   FUNCTION_PROFILE_START();
+
+#if defined(SMP) && defined(_OPENMP)
+  if (incx == 1 &&
+      ((size_t)n * COMPSIZE * sizeof(FLOAT) > openblas_bigvec_threshold_bytes()) &&
+      !omp_in_parallel()) {
+    #pragma omp parallel
+    {
+      int tid = omp_get_thread_num();
+      int nth = omp_get_num_threads();
+      BLASLONG start = (n * tid) / nth;
+      BLASLONG end   = (n * (tid + 1)) / nth;
+      if (end > start) {
+        SCAL_K(end - start, 0, 0, alpha,
+               x + start * COMPSIZE, 1, NULL, 0, NULL, 1);
+      }
+    }
+
+    FUNCTION_PROFILE_END(1, n, n);
+    IDEBUG_END;
+    return;
+  }
+#endif
 
 
 #ifdef SMP

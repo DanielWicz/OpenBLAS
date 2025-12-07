@@ -38,8 +38,13 @@
 
 #include <stdio.h>
 #include "common.h"
+#include "bigvec.h"
 #ifdef FUNCTION_PROFILE
 #include "functable.h"
+#endif
+#if defined(SMP) && defined(_OPENMP)
+#include <omp.h>
+extern int omp_in_parallel(void);
 #endif
 
 #ifndef CBLAS
@@ -61,6 +66,23 @@ FLOATRET NAME(blasint *N, FLOAT *x, blasint *INCX, FLOAT *y, blasint *INCY){
 
   if (incx < 0) x -= (n - 1) * incx;
   if (incy < 0) y -= (n - 1) * incy;
+
+#if defined(SMP) && defined(_OPENMP) && !defined(COMPLEX)
+  if (incx == 1 && incy == 1 &&
+      ((size_t)n * COMPSIZE * sizeof(FLOAT) > openblas_bigvec_threshold_bytes()) &&
+      !omp_in_parallel()) {
+    double acc = 0.0;
+    #pragma omp parallel for reduction(+:acc) schedule(static)
+    for (BLASLONG i = 0; i < n; i++) {
+      acc += (double)x[i] * (double)y[i];
+    }
+    ret = (FLOATRET)acc;
+
+    FUNCTION_PROFILE_END(1, 2 * n, 2 * n);
+    IDEBUG_END;
+    return ret;
+  }
+#endif
 
   ret = (FLOATRET)DOTU_K(n, x, incx, y, incy);
 
@@ -87,6 +109,23 @@ FLOAT CNAME(blasint n, FLOAT *x, blasint incx, FLOAT *y, blasint incy){
 
   if (incx < 0) x -= (n - 1) * incx;
   if (incy < 0) y -= (n - 1) * incy;
+
+#if defined(SMP) && defined(_OPENMP) && !defined(COMPLEX)
+  if (incx == 1 && incy == 1 &&
+      ((size_t)n * COMPSIZE * sizeof(FLOAT) > openblas_bigvec_threshold_bytes()) &&
+      !omp_in_parallel()) {
+    double acc = 0.0;
+    #pragma omp parallel for reduction(+:acc) schedule(static)
+    for (BLASLONG i = 0; i < n; i++) {
+      acc += (double)x[i] * (double)y[i];
+    }
+    ret = (FLOAT)acc;
+
+    FUNCTION_PROFILE_END(1, 2 * n, 2 * n);
+    IDEBUG_END;
+    return ret;
+  }
+#endif
 
   ret = DOTU_K(n, x, incx, y, incy);
 
