@@ -716,17 +716,21 @@ void get_cpuconfig(void)
 		break;
 
 	    case CPU_AMPERE1:
+		/* AmpereOne (A1) cache hierarchy */
 		printf("#define %s\n", cpuname[d]);
-		printf("#define L1_CODE_SIZE 16384\n");
-		printf("#define L1_CODE_LINESIZE 64\n");
-		printf("#define L1_CODE_ASSOCIATIVE 4\n");
-		printf("#define L1_DATA_SIZE 65536\n");
-		printf("#define L1_DATA_LINESIZE 64\n");
-		printf("#define L1_DATA_ASSOCIATIVE 4\n");
-		printf("#define L2_SIZE 2097152\n");
-		printf("#define L2_LINESIZE 64\n");
-		printf("#define L2_ASSOCIATIVE 8\n");
-		printf("#define DTB_DEFAULT_ENTRIES 64\n");
+		printf("#define L1_CODE_SIZE         16384\n");
+		printf("#define L1_CODE_LINESIZE     64\n");
+		printf("#define L1_CODE_ASSOCIATIVE  4\n");
+		printf("#define L1_DATA_SIZE         65536\n");
+		printf("#define L1_DATA_LINESIZE     64\n");
+		printf("#define L1_DATA_ASSOCIATIVE  4\n");
+		printf("#define L2_SIZE              2097152\n");
+		printf("#define L2_LINESIZE          64\n");
+		printf("#define L2_ASSOCIATIVE       8\n");
+		printf("#define L3_SIZE              67108864\n");
+		printf("#define L3_LINESIZE          64\n");
+		printf("#define L3_ASSOCIATIVE       32\n");
+		printf("#define DTB_DEFAULT_ENTRIES  64\n");
 		printf("#define DTB_SIZE 4096\n");
 		break;
 
