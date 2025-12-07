@@ -1,6 +1,8 @@
 #define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
 #include <omp.h>
 #include <cblas.h>
 
@@ -45,11 +47,72 @@ static void *aligned_alloc64(size_t bytes) {
   return p;
 }
 
+static int parse_int_list(const char *env, int *out, int max) {
+  int n = 0;
+  const char *p = env;
+  while (*p && n < max) {
+    while (*p == ' ' || *p == ',') p++;
+    if (!*p) break;
+    char *end = NULL;
+    long v = strtol(p, &end, 10);
+    if (end && v > 0) out[n++] = (int)v;
+    p = end ? end : p + 1;
+    while (*p && *p != ',') p++;
+  }
+  return n;
+}
+
+static int build_outer_list(int *out, int max) {
+  const char *env = getenv("BENCH_OUTER");
+  int n = 0;
+  if (env && *env) n = parse_int_list(env, out, max);
+  if (n > 0) return n;
+
+  int defaults[] = {2, 4, 6, 8, 12, 16, 24, 32};
+  int tmax = omp_get_max_threads();
+  for (size_t i = 0; i < sizeof(defaults)/sizeof(defaults[0]) && n < max; i++) {
+    int v = defaults[i];
+    if (v > tmax * 2) break; /* avoid extreme oversubscription */
+    out[n++] = v;
+  }
+  return n;
+}
+
+static int build_inner_list(int *out, int max) {
+  const char *env = getenv("BENCH_INNER");
+  int n = 0;
+  if (env && *env) n = parse_int_list(env, out, max);
+  if (n > 0) return n;
+
+  int defaults[] = {1, 2, 4, 8};
+  int tmax = omp_get_max_threads();
+  for (size_t i = 0; i < sizeof(defaults)/sizeof(defaults[0]) && n < max; i++) {
+    int v = defaults[i];
+    if (v > tmax) break;
+    out[n++] = v;
+  }
+  return n;
+}
+
 int main(void) {
-  const int N = 96;          /* balance between threading and runtime */
-  const int inner_list[] = {1, 2, 4};
-  const int outer_list[] = {2, 4, 6, 8};
-  const int iters_per_thread = 3;
+  int inner_list[8];
+  int outer_list[16];
+  int num_inner = build_inner_list(inner_list, (int)(sizeof(inner_list)/sizeof(inner_list[0])));
+  int num_outer = build_outer_list(outer_list, (int)(sizeof(outer_list)/sizeof(outer_list[0])));
+
+  int N = 96; /* matrix dimension per DGEMM */
+  const char *env_n = getenv("BENCH_N");
+  if (env_n && *env_n) {
+    int v = atoi(env_n);
+    if (v > 16) N = v;
+  }
+
+  int iters_per_thread = 3;
+  const char *env_iter = getenv("BENCH_CALLS");
+  if (env_iter && *env_iter) {
+    int v = atoi(env_iter);
+    if (v > 0) iters_per_thread = v;
+  }
 
   size_t bytes = (size_t)N * N * sizeof(double);
   double *A = aligned_alloc64(bytes);
@@ -65,12 +128,13 @@ int main(void) {
     C[i] = 0.0;
   }
 
+  printf("# N=%d, iters_per_thread=%d, max_threads=%d\n", N, iters_per_thread, omp_get_max_threads());
   printf("outer_threads,inner_threads,calls,time_ms,us_per_call,std_us,runs\n");
-  for (int il = 0; il < (int)(sizeof(inner_list)/sizeof(inner_list[0])); il++) {
+  for (int il = 0; il < num_inner; il++) {
     int inner_threads = inner_list[il];
     openblas_set_num_threads(inner_threads);
 
-    for (int idx = 0; idx < (int)(sizeof(outer_list)/sizeof(outer_list[0])); idx++) {
+    for (int idx = 0; idx < num_outer; idx++) {
       int outer = outer_list[idx];
       int total_calls = outer * iters_per_thread;
       double times[128];
