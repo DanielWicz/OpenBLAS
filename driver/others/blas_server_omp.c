@@ -76,11 +76,17 @@ int blas_omp_threads_local = 0;
 extern int openblas_omp_adaptive_env(void);
 
 static void * blas_thread_buffer[MAX_PARALLEL_NUMBER][MAX_CPU_NUMBER];
+
+typedef union {
 #ifdef HAVE_C11
-static atomic_bool blas_buffer_inuse[MAX_PARALLEL_NUMBER];
+  atomic_bool inuse;
 #else
-static _Bool blas_buffer_inuse[MAX_PARALLEL_NUMBER];
+  _Bool inuse;
 #endif
+  char padding[64];
+} blas_buffer_inuse_t;
+
+static blas_buffer_inuse_t blas_buffer_inuse[MAX_PARALLEL_NUMBER];
 
 static void adjust_thread_buffers(void) {
 
@@ -88,12 +94,7 @@ static void adjust_thread_buffers(void) {
 
   //adjust buffer for each thread
   for(i=0; i < MAX_PARALLEL_NUMBER; i++) {
-    for(j=0; j < blas_cpu_number; j++){
-      if(blas_thread_buffer[i][j] == NULL){
-        blas_thread_buffer[i][j] = blas_memory_alloc(2);
-      }
-    }
-    for(; j < MAX_CPU_NUMBER; j++){
+    for(j=blas_cpu_number; j < MAX_CPU_NUMBER; j++){
       if(blas_thread_buffer[i][j] != NULL){
         blas_memory_free(blas_thread_buffer[i][j]);
         blas_thread_buffer[i][j] = NULL;
@@ -329,7 +330,7 @@ static void exec_threads(int thread_num, blas_queue_t *queue, int buf_index){
     //fallback or dynamic
     if(buffer==NULL) {
       buffer = blas_memory_alloc(2);
-      release_flag=1;
+      blas_thread_buffer[buf_index][pos] = buffer;
     }
 
     if (sa == NULL) {
@@ -467,10 +468,10 @@ int exec_blas(BLASLONG num, blas_queue_t *queue){
     for(i=0; i < MAX_PARALLEL_NUMBER; i++) {
 #ifdef HAVE_C11
       _Bool inuse = false;
-      if(atomic_compare_exchange_weak(&blas_buffer_inuse[i], &inuse, true)) {
+      if(atomic_compare_exchange_weak(&blas_buffer_inuse[i].inuse, &inuse, true)) {
 #else
-      if(blas_buffer_inuse[i] == false) {
-        blas_buffer_inuse[i] = true;
+      if(blas_buffer_inuse[i].inuse == false) {
+        blas_buffer_inuse[i].inuse = true;
 #endif
         buf_index = i;
         break;
@@ -483,9 +484,9 @@ int exec_blas(BLASLONG num, blas_queue_t *queue){
   exec_blas_internal(num, queue, buf_index);
 
 #ifdef HAVE_C11
-  atomic_store(&blas_buffer_inuse[buf_index], false);
+  atomic_store(&blas_buffer_inuse[buf_index].inuse, false);
 #else
-  blas_buffer_inuse[buf_index] = false;
+  blas_buffer_inuse[buf_index].inuse = false;
 #endif
 
   return 0;
