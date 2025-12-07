@@ -53,6 +53,9 @@
 #define GEMM_PREFERED_SIZE 1
 #endif
 
+/* Env control: allow users to bypass nested clamp if desired (e.g. very large machines). */
+extern int openblas_disable_nested_clamp_env(void);
+
 //The array of job_t may overflow the stack.
 //Instead, use malloc to alloc job_t.
 #if MAX_CPU_NUMBER > BLAS3_MEM_ALLOC_THRESHOLD
@@ -934,7 +937,11 @@ int CNAME(blas_arg_t *args, BLASLONG *range_m, BLASLONG *range_n, IFLOAT *sa, IF
    * the physical cores instead of oversubscribing them. This keeps the inner
    * OpenMP parallel regions productive when many outer tasks call GEMM.
    */
-  if (omp_in_parallel()) {
+  static int disable_clamp = -1;
+  if (disable_clamp == -1)
+    disable_clamp = openblas_disable_nested_clamp_env();
+
+  if (!disable_clamp && omp_in_parallel()) {
     int outer_threads = omp_get_num_threads();
     int cores = blas_cpu_number;
     if (cores <= 0) cores = omp_get_max_threads();

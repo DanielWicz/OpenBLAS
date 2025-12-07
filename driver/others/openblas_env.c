@@ -40,6 +40,7 @@ static int openblas_env_openblas_num_threads=0;
 static int openblas_env_goto_num_threads=0;
 static int openblas_env_omp_num_threads=0;
 static int openblas_env_omp_adaptive=0;
+static int openblas_env_disable_nested_clamp=0;
 
 int openblas_verbose(void) { return openblas_env_verbose;}
 unsigned int openblas_thread_timeout(void) { return openblas_env_thread_timeout;}
@@ -48,6 +49,7 @@ int openblas_num_threads_env(void) { return openblas_env_openblas_num_threads;}
 int openblas_goto_num_threads_env(void) { return openblas_env_goto_num_threads;}
 int openblas_omp_num_threads_env(void) { return openblas_env_omp_num_threads;}
 int openblas_omp_adaptive_env(void) { return openblas_env_omp_adaptive;}
+int openblas_disable_nested_clamp_env(void) { return openblas_env_disable_nested_clamp;}
 
 void openblas_read_env(void) {
   int ret=0;
@@ -92,6 +94,10 @@ void openblas_read_env(void) {
   if(ret<0) ret=0;
   openblas_env_omp_adaptive=ret;
 
-}
+  ret=0;
+  if (readenv(p,"OPENBLAS_DISABLE_NESTED_CLAMP")) ret = atoi(p);
+  if(ret<0) ret=0;
+  openblas_env_disable_nested_clamp=ret;
 
+}
 
