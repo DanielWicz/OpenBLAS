@@ -564,6 +564,7 @@ static int gemm_driver(blas_arg_t *args, BLASLONG *range_m, BLASLONG
                        BLASLONG nthreads_m, BLASLONG nthreads_n) {
 
 #ifdef USE_OPENMP
+  extern int exec_blas_dynamic(BLASLONG num, blas_queue_t *queue);
   static omp_lock_t level3_lock, critical_section_lock;
   static volatile BLASULONG init_lock = 0, omp_lock_initialized = 0,
                   parallel_section_left = MAX_PARALLEL_NUMBER;
@@ -610,6 +611,7 @@ static int gemm_driver(blas_arg_t *args, BLASLONG *range_m, BLASLONG
   BLASLONG width, width_n, i, j, k, js;
   BLASLONG m, n, n_from, n_to;
   int mode;
+  int use_dynamic = 0;
 #if defined(DYNAMIC_ARCH)
   int switch_ratio = gotoblas->switch_ratio;
 #else
@@ -636,22 +638,23 @@ static int gemm_driver(blas_arg_t *args, BLASLONG *range_m, BLASLONG
 #endif
 
 #ifdef USE_OPENMP
-  omp_set_lock(&level3_lock);
-  omp_set_lock(&critical_section_lock);
-
-  parallel_section_left--;
-  
   /*
-    How OpenMP locks works with NUM_PARALLEL
-  1) parallel_section_left  = Number of available concurrent executions of OpenBLAS - Number of currently executing OpenBLAS executions
-  2) level3_lock is acting like a master lock or barrier which stops OpenBLAS calls when all the parallel_section are currently busy executing other OpenBLAS calls
-  3) critical_section_lock is used for updating variables shared between threads executing OpenBLAS calls concurrently and for unlocking of master lock whenever required
-  4) Unlock master lock only when we have not already exhausted all the parallel_sections and allow another thread with a OpenBLAS call to enter
-  */
-  if(parallel_section_left != 0) 
-    omp_unset_lock(&level3_lock);
+   * Optimization for nested parallelism and high concurrency:
+   * Try to acquire a slot in the fixed thread buffer pool.
+   * If successful, use standard logic.
+   * If failed (pool exhausted), fallback to dynamic memory allocation (use_dynamic = 1)
+   * to avoid serialization/deadlocks.
+   */
+  if (omp_test_lock(&level3_lock)) {
+      omp_set_lock(&critical_section_lock);
+      parallel_section_left--;
+      if(parallel_section_left != 0)
+        omp_unset_lock(&level3_lock);
 
-  omp_unset_lock(&critical_section_lock);
+      omp_unset_lock(&critical_section_lock);
+  } else {
+      use_dynamic = 1;
+  }
 
 #elif defined(OS_WINDOWS)
   EnterCriticalSection((PCRITICAL_SECTION)&level3_lock);
@@ -784,7 +787,15 @@ static int gemm_driver(blas_arg_t *args, BLASLONG *range_m, BLASLONG
     }
     WMB;
     /* Execute parallel computation */
-    exec_blas(nthreads, queue);
+    if (use_dynamic) {
+#ifdef USE_OPENMP
+      exec_blas_dynamic(nthreads, queue);
+#else
+      exec_blas(nthreads, queue);
+#endif
+    } else {
+      exec_blas(nthreads, queue);
+    }
   }
 
 #ifdef USE_ALLOC_HEAP
@@ -792,18 +803,15 @@ static int gemm_driver(blas_arg_t *args, BLASLONG *range_m, BLASLONG
 #endif
 
 #ifdef USE_OPENMP
-  omp_set_lock(&critical_section_lock);
-  parallel_section_left++;
+  if (!use_dynamic) {
+    omp_set_lock(&critical_section_lock);
+    parallel_section_left++;
 
-  /*
-  Unlock master lock only when all the parallel_sections are already exhausted and one of the thread has completed its OpenBLAS call
-  otherwise just increment the parallel_section_left
-  The master lock is only locked when we have exhausted all the parallel_sections, So only unlock it then and otherwise just increment the count
-  */
-  if(parallel_section_left == 1)
-    omp_unset_lock(&level3_lock);
+    if(parallel_section_left == 1)
+      omp_unset_lock(&level3_lock);
   
-  omp_unset_lock(&critical_section_lock);
+    omp_unset_lock(&critical_section_lock);
+  }
 
 #elif defined(OS_WINDOWS)
   LeaveCriticalSection((PCRITICAL_SECTION)&level3_lock);

@@ -320,9 +320,11 @@ static void exec_threads(int thread_num, blas_queue_t *queue, int buf_index){
   if ((sa == NULL) && (sb == NULL) && ((queue -> mode & BLAS_PTHREAD) == 0)) {
 
     pos= thread_num;
-    buffer = blas_thread_buffer[buf_index][pos];
+    if (buf_index != -1) {
+        buffer = blas_thread_buffer[buf_index][pos];
+    }
 
-    //fallback
+    //fallback or dynamic
     if(buffer==NULL) {
       buffer = blas_memory_alloc(2);
       release_flag=1;
@@ -401,12 +403,9 @@ fprintf(stderr,"UNHANDLED COMPLEX\n");
 
 }
 
-int exec_blas(BLASLONG num, blas_queue_t *queue){
+static int exec_blas_internal(BLASLONG num, blas_queue_t *queue, int buf_index){
 
-  // Handle lazy re-init of the thread-pool after a POSIX fork
-  if (unlikely(blas_server_avail == 0)) blas_thread_init();
-
-  BLASLONG i, buf_index;
+  BLASLONG i;
 
   if ((num <= 0) || (queue == NULL)) return 0;
 
@@ -421,22 +420,6 @@ int exec_blas(BLASLONG num, blas_queue_t *queue){
   }
 #endif
 
-while (true) {
-    for(i=0; i < MAX_PARALLEL_NUMBER; i++) {
-#ifdef HAVE_C11
-      _Bool inuse = false;
-      if(atomic_compare_exchange_weak(&blas_buffer_inuse[i], &inuse, true)) {
-#else
-      if(blas_buffer_inuse[i] == false) {
-        blas_buffer_inuse[i] = true;
-#endif
-        buf_index = i;
-        break;
-      }
-    }
-    if(i != MAX_PARALLEL_NUMBER)
-      break;
-  }
   /*For caller-managed threading, if caller has registered the callback, pass exec_thread as callback function*/
   if (openblas_threads_callback_) {
 #ifndef USE_SIMPLE_THREADED_LEVEL3
@@ -467,6 +450,36 @@ while (true) {
 }
 }
 
+  return 0;
+}
+
+int exec_blas(BLASLONG num, blas_queue_t *queue){
+
+  // Handle lazy re-init of the thread-pool after a POSIX fork
+  if (unlikely(blas_server_avail == 0)) blas_thread_init();
+
+  int buf_index = -1;
+  int i;
+
+  while (true) {
+    for(i=0; i < MAX_PARALLEL_NUMBER; i++) {
+#ifdef HAVE_C11
+      _Bool inuse = false;
+      if(atomic_compare_exchange_weak(&blas_buffer_inuse[i], &inuse, true)) {
+#else
+      if(blas_buffer_inuse[i] == false) {
+        blas_buffer_inuse[i] = true;
+#endif
+        buf_index = i;
+        break;
+      }
+    }
+    if(i != MAX_PARALLEL_NUMBER)
+      break;
+  }
+
+  exec_blas_internal(num, queue, buf_index);
+
 #ifdef HAVE_C11
   atomic_store(&blas_buffer_inuse[buf_index], false);
 #else
@@ -474,6 +487,10 @@ while (true) {
 #endif
 
   return 0;
+}
+
+int exec_blas_dynamic(BLASLONG num, blas_queue_t *queue){
+    return exec_blas_internal(num, queue, -1);
 }
 
 #endif
