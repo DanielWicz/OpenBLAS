@@ -142,9 +142,13 @@ extern int blas_omp_threads_local;
 static __inline int num_cpu_avail(int level) {
 
 #ifdef USE_OPENMP
-int openmp_nthreads;
-	openmp_nthreads=omp_get_max_threads();
-	if (omp_in_parallel()) openmp_nthreads = blas_omp_threads_local;
+  int openmp_nthreads = omp_get_max_threads();
+
+  /* For nested OpenMP callers: default to the runtime's per-level setting.
+   * Only fall back to the legacy per-thread override when the user calls
+   * openblas_set_num_threads_local(). */
+  if (omp_in_parallel() && blas_omp_threads_local > 0)
+    openmp_nthreads = blas_omp_threads_local;
 #endif
 
 #ifndef USE_OPENMP 
@@ -155,14 +159,11 @@ int openmp_nthreads;
       ) return 1;        
 
 #ifdef USE_OPENMP
-     if (openmp_nthreads > blas_omp_number_max){
-#ifdef DEBUG
-     fprintf(stderr,"WARNING - more OpenMP threads requested (%d) than available (%d)\n",openmp_nthreads,blas_omp_number_max);
-#endif
-     openmp_nthreads = blas_omp_number_max;
-     }
-     if (blas_cpu_number != openmp_nthreads) {
-	  goto_set_num_threads(openmp_nthreads);
+  if (openmp_nthreads > blas_omp_number_max)
+    blas_omp_number_max = openmp_nthreads;
+
+  if (blas_cpu_number != openmp_nthreads) {
+    goto_set_num_threads(openmp_nthreads);
   }
 #endif
 

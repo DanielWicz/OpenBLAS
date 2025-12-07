@@ -69,7 +69,9 @@
 
 int blas_server_avail = 0;
 int blas_omp_number_max = 0;
-int blas_omp_threads_local = 1;
+/* 0 means “follow the OpenMP runtime default for the current level”.
+ * A positive value is an explicit user override via openblas_set_num_threads_local(). */
+int blas_omp_threads_local = 0;
 
 extern int openblas_omp_adaptive_env(void);
 
