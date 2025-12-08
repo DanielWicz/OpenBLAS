@@ -20,7 +20,7 @@ static double target_cv(void) {
 
 static int max_runs(void) {
   const char *s = getenv("BENCH_MAX_RUNS");
-  if (!s || !*s) return 30;
+  if (!s || !*s) return 50; /* default to more samples for tighter stats */
   int v = atoi(s);
   if (v < 3) v = 3;
   return v;
