@@ -38,22 +38,25 @@ import csv, sys, os
 TMP = sys.argv[1]
 from collections import defaultdict
 
+def _dictreader_skip_comments(path):
+    with open(path) as f:
+        lines = [ln for ln in f if not ln.startswith('#')]
+    if not lines:
+        return []
+    return list(csv.DictReader(lines))
+
 def load_mem(path):
     rows = {}
-    with open(path) as f:
-        r = csv.DictReader(f)
-        for row in r:
-            key = (row['test'], int(row['size_bytes']), int(row['threads']))
-            rows[key] = float(row['gbps'])
+    for row in _dictreader_skip_comments(path):
+        key = (row['test'], int(row['size_bytes']), int(row['threads']))
+        rows[key] = float(row['gbps'])
     return rows
 
 def load_buf(path):
     rows = {}
-    with open(path) as f:
-        r = csv.DictReader(f)
-        for row in r:
-            key = (int(row['outer_threads']), int(row['inner_threads']))
-            rows[key] = float(row['us_per_call'])
+    for row in _dictreader_skip_comments(path):
+        key = (int(row['outer_threads']), int(row['inner_threads']))
+        rows[key] = float(row['us_per_call'])
     return rows
 
 memA = load_mem(f"{TMP}/memcopy_A.csv")
