@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # Usage: benchmark/compare_bench.sh <dirA> <dirB>
-# Runs memcopy_bench and buffer_acquire_bench in both trees and prints a
-# side-by-side speed comparison (GB/s or us/call speedup).
+# Runs memcopy_bench, buffer_acquire_bench, and (if present) numa_copy_bench
+# in both trees and prints a side-by-side speed comparison.
 
 if [ "$#" -lt 2 ]; then
   echo "Usage: $0 <current_repo_dir> <compare_repo_dir>" >&2
@@ -23,6 +23,10 @@ compile_and_run() {
   gcc -O2 -fopenmp -I. benchmark/buffer_acquire_bench.c libopenblas_nehalemp-r0.3.30.dev.a -lm -lpthread -o benchmark/buffer_acquire_bench
   OMP_NUM_THREADS=${OMP_NUM_THREADS:-8} ./benchmark/memcopy_bench > "$TMP/memcopy_${label}.csv"
   OMP_NESTED=TRUE OMP_MAX_ACTIVE_LEVELS=2 OMP_NUM_THREADS=${OMP_NESTED_THREADS:-4} ./benchmark/buffer_acquire_bench > "$TMP/buffer_${label}.csv"
+  if [ -f benchmark/numa_copy_bench.c ]; then
+    gcc -O2 -fopenmp -lnuma -I. benchmark/numa_copy_bench.c -lm -o benchmark/numa_copy_bench
+    OMP_NUM_THREADS=${OMP_NUMA_THREADS:-8} OMP_PROC_BIND=spread ./benchmark/numa_copy_bench > "$TMP/numa_${label}.csv"
+  fi
   popd >/dev/null
 }
 
@@ -30,7 +34,7 @@ compile_and_run "$DIR_A" "A"
 compile_and_run "$DIR_B" "B"
 
 python - "$TMP" <<'PY'
-import csv, sys
+import csv, sys, os
 TMP = sys.argv[1]
 from collections import defaultdict
 
@@ -57,6 +61,21 @@ memB = load_mem(f"{TMP}/memcopy_B.csv")
 bufA = load_buf(f"{TMP}/buffer_A.csv")
 bufB = load_buf(f"{TMP}/buffer_B.csv")
 
+def load_numa(label):
+    path = f"{TMP}/numa_{label}.csv"
+    if not os.path.exists(path):
+        return {}
+    rows = {}
+    with open(path) as f:
+        r = csv.DictReader(f)
+        for row in r:
+            key = (row['case'], int(row['size_bytes']), int(row['threads']))
+            rows[key] = float(row['agg_gbps'])
+    return rows
+
+numaA = load_numa("A")
+numaB = load_numa("B")
+
 print("=== memcopy_bench (GB/s) ===")
 print("test,size,thr,A,B,speedup")
 for key in sorted(memA.keys()):
@@ -72,4 +91,13 @@ for key in sorted(bufA.keys()):
     b = bufB.get(key, 0.0)
     speed = (b / a) if a else 0.0
     print(f"{key[0]},{key[1]},{a:.2f},{b:.2f},{speed:.2f}x")
+
+if numaA:
+    print("\n=== numa_copy_bench (GB/s) ===")
+    print("case,size,thr,A,B,speedup")
+    for key in sorted(numaA.keys()):
+        a = numaA[key]
+        b = numaB.get(key, 0.0)
+        speed = (a / b) if b else 0.0
+        print(f"{key[0]},{key[1]},{key[2]},{a:.3f},{b:.3f},{speed:.2f}x")
 PY

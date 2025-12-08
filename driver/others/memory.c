@@ -158,6 +158,7 @@ USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <sys/syscall.h>
 #include <sys/time.h>
 #include <sys/resource.h>
+#include <dlfcn.h>
 #endif
 
 #ifdef OS_HAIKU
@@ -557,6 +558,89 @@ struct alloc_t {
    that each allocation always has its associated alloc_t, without the need
    for an auxiliary tracking structure. */
 static const int allocation_block_size = BUFFER_SIZE + sizeof(struct alloc_t);
+
+/* ---------- Optional NUMA pinning (runtime, no build-time libnuma dep) ---------- */
+#ifdef OS_LINUX
+static void *numa_handle = NULL;
+static int numa_init_state = 0; /* 0=unknown, 1=enabled, -1=disabled */
+static int (*p_numa_available)(void) = NULL;
+static int (*p_numa_node_of_cpu)(int) = NULL;
+static int (*p_numa_tonode_memory)(void *, size_t, int) = NULL;
+
+static void openblas_numa_try_init(void) {
+  if (numa_init_state != 0) return;
+  const char *env = getenv("OPENBLAS_NUMA_PIN");
+  if (!env || !*env || !strcasecmp(env, "off") || !strcasecmp(env, "0") || !strcasecmp(env, "false")) {
+    numa_init_state = -1;
+    return;
+  }
+  if (!strcasecmp(env, "auto") || !strcasecmp(env, "on") || !strcasecmp(env, "1") || !strcasecmp(env, "true")) {
+    numa_handle = dlopen("libnuma.so.1", RTLD_LAZY);
+    if (!numa_handle) { numa_init_state = -1; return; }
+    p_numa_available = (int (*)(void))dlsym(numa_handle, "numa_available");
+    p_numa_node_of_cpu = (int (*)(int))dlsym(numa_handle, "numa_node_of_cpu");
+    p_numa_tonode_memory = (int (*)(void *, size_t, int))dlsym(numa_handle, "numa_tonode_memory");
+    if (!p_numa_available || !p_numa_node_of_cpu || !p_numa_tonode_memory) {
+      numa_init_state = -1;
+      return;
+    }
+    if (p_numa_available() < 0) {
+      numa_init_state = -1;
+      return;
+    }
+    numa_init_state = 1;
+    return;
+  }
+  /* Unknown token => keep disabled */
+  numa_init_state = -1;
+}
+
+static int openblas_numa_enabled(void) {
+  if (numa_init_state == 0) openblas_numa_try_init();
+  return numa_init_state == 1;
+}
+
+/* Rebind a TLS buffer to the current CPU's NUMA node to improve locality. */
+void openblas_numa_bind_buffer(void *buffer) {
+  if (!openblas_numa_enabled() || buffer == NULL) return;
+  int cpu = sched_getcpu();
+  if (cpu < 0) return;
+  int node = p_numa_node_of_cpu(cpu);
+  if (node < 0) return;
+  struct alloc_t *alloc_info = (struct alloc_t *)(((char *)buffer) - sizeof(struct alloc_t));
+  p_numa_tonode_memory((void *)alloc_info, allocation_block_size, node);
+}
+#else
+void openblas_numa_bind_buffer(void *buffer) { (void)buffer; }
+#endif
+
+/* ---------- Optional Level-1 team cap ---------- */
+static int l1_team_cap_init = 0;
+static int l1_team_cap_value = 0;
+static BLASLONG l1_team_size_thresh = 0;
+
+static void openblas_l1_team_cap_load(void) {
+  if (l1_team_cap_init) return;
+  l1_team_cap_init = 1;
+  const char *cap = getenv("OPENBLAS_L1_TEAM_CAP");
+  if (cap && *cap) {
+    int v = atoi(cap);
+    if (v > 0) l1_team_cap_value = v;
+  }
+  const char *th = getenv("OPENBLAS_L1_SIZE_THRESH");
+  if (th && *th) {
+    long long v = atoll(th);
+    if (v > 0) l1_team_size_thresh = (BLASLONG)v;
+  }
+}
+
+int openblas_l1_team_cap(int nthreads, BLASLONG m) {
+  openblas_l1_team_cap_load();
+  if (l1_team_cap_value <= 0) return nthreads;
+  if (l1_team_size_thresh > 0 && m >= l1_team_size_thresh) return nthreads;
+  if (nthreads > l1_team_cap_value) return l1_team_cap_value;
+  return nthreads;
+}
 
 #if defined(SMP)
 #  if defined(OS_WINDOWS)
