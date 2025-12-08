@@ -24,7 +24,7 @@ compile_and_run() {
   OMP_NUM_THREADS=${OMP_NUM_THREADS:-8} ./benchmark/memcopy_bench > "$TMP/memcopy_${label}.csv"
   OMP_NESTED=TRUE OMP_MAX_ACTIVE_LEVELS=2 OMP_NUM_THREADS=${OMP_NESTED_THREADS:-4} ./benchmark/buffer_acquire_bench > "$TMP/buffer_${label}.csv"
   if [ -f benchmark/numa_copy_bench.c ]; then
-    gcc -O2 -fopenmp -lnuma -I. benchmark/numa_copy_bench.c -lm -o benchmark/numa_copy_bench
+    gcc -O2 -fopenmp -I. benchmark/numa_copy_bench.c -lm -lnuma -o benchmark/numa_copy_bench
     OMP_NUM_THREADS=${OMP_NUMA_THREADS:-8} OMP_PROC_BIND=spread ./benchmark/numa_copy_bench > "$TMP/numa_${label}.csv"
   fi
   popd >/dev/null
