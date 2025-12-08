@@ -226,7 +226,7 @@ int main(void) {
     double cv_target = target_cv();
     int runs_limit = max_runs();
 
-    printf("test,size_bytes,instances,inner_threads,agg_gbps,per_instance_gbps,std_pct,runs\n");
+    printf("test,size_bytes,instances,inner_threads,agg_gbps,per_instance_gbps,agg_gflops,per_instance_gflops,std_pct,runs\n");
     for (int s = 0; s < nsizes; s++) {
         size_t bytes = sizes[s];
         size_t elems = bytes / sizeof(float);
@@ -247,14 +247,20 @@ int main(void) {
             int runs;
 
             bw = run_memcpy_case(dst, src, bytes, inst, runs_limit, cv_target, &std_pct, &runs);
-            printf("memcpy,%zu,%d,%d,%.3f,%.3f,%.2f,%d\n",
-                   bytes, inst, 0, bw, bw / inst, std_pct, runs);
+            printf("memcpy,%zu,%d,%d,%.3f,%.3f,%.3f,%.3f,%.2f,%d\n",
+                   bytes, inst, 0,
+                   bw, bw / inst,
+                   bw / 4.0, (bw / inst) / 4.0,
+                   std_pct, runs);
 
             for (int t = 0; t < ninner; t++) {
                 int inner = inner_list[t];
                 bw = run_scopy_case(dst, src, bytes, inst, inner, runs_limit, cv_target, &std_pct, &runs);
-                printf("scopy,%zu,%d,%d,%.3f,%.3f,%.2f,%d\n",
-                       bytes, inst, inner, bw, bw / inst, std_pct, runs);
+                printf("scopy,%zu,%d,%d,%.3f,%.3f,%.3f,%.3f,%.2f,%d\n",
+                       bytes, inst, inner,
+                       bw, bw / inst,
+                       bw / 4.0, (bw / inst) / 4.0,
+                       std_pct, runs);
             }
         }
 

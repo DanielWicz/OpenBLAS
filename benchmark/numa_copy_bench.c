@@ -288,8 +288,10 @@ static double run_case(bench_case_t which, size_t bytes, int threads, int node_a
     double gbps = total_bytes / m / 1e9;
     double std_pct = (m > 0.0) ? (sd / m * 100.0) : 0.0;
 
-    printf("%s,%zu,%d,%.3f,%.3f,%d,%.2f,%d\n",
-           case_name[which], bytes, threads, gbps, gbps / threads,
+    printf("%s,%zu,%d,%.3f,%.3f,%.3f,%.3f,%d,%.2f,%d\n",
+           case_name[which], bytes, threads,
+           gbps, gbps / threads,
+           gbps / 4.0, (gbps / threads) / 4.0,
            (which == CASE_BIDIR) ? 2 : 1, std_pct, runs);
 
     for (int t = 0; t < threads; t++) {
@@ -329,7 +331,7 @@ int main(void) {
     int threads_list[12];
     int nthreads = build_thread_list(threads_list, (int)(sizeof(threads_list)/sizeof(threads_list[0])));
 
-    printf("case,size_bytes,threads,agg_gbps,per_thread_gbps,directions,std_pct,runs\n");
+    printf("case,size_bytes,threads,agg_gbps,per_thread_gbps,agg_gflops,per_thread_gflops,directions,std_pct,runs\n");
     for (int s = 0; s < nsizes; s++) {
         size_t bytes = sizes[s];
         for (int t = 0; t < nthreads; t++) {
