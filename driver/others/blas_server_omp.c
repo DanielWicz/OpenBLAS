@@ -67,8 +67,6 @@
 #define OMP_SCHED static
 #endif
 
-#include <sched.h>
-
 int blas_server_avail = 0;
 int blas_omp_number_max = 0;
 /* 0 means “follow the OpenMP runtime default for the current level”.
@@ -99,7 +97,6 @@ static void adjust_thread_buffers(void) {
     for(j=0; j < blas_cpu_number; j++){
       if(blas_thread_buffer[i][j] == NULL){
         blas_thread_buffer[i][j] = blas_memory_alloc(2);
-        openblas_numa_bind_buffer(blas_thread_buffer[i][j]);
       }
     }
     for(; j < MAX_CPU_NUMBER; j++){
@@ -337,7 +334,6 @@ static void exec_threads(int thread_num, blas_queue_t *queue, int buf_index){
     if(buffer==NULL) {
       buffer = blas_memory_alloc(2);
       release_flag=1;
-      openblas_numa_bind_buffer(buffer);
     }
 
     if (sa == NULL) {

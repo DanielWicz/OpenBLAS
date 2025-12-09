@@ -183,8 +183,6 @@ int BLASFUNC(blas_thread_shutdown)(void);
 int exec_blas(BLASLONG, blas_queue_t *);
 int exec_blas_async(BLASLONG, blas_queue_t *);
 int exec_blas_async_wait(BLASLONG, blas_queue_t *);
-void openblas_numa_bind_buffer(void *buffer);
-int openblas_l1_team_cap(int nthreads, BLASLONG m);
 
 #else
 int exec_blas_async(BLASLONG num_cpu, blas_param_t *param, pthread_t *);
