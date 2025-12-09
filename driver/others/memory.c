@@ -618,12 +618,6 @@ void openblas_numa_bind_buffer(void *buffer) { (void)buffer; }
 static int l1_team_cap_init = 0;
 static int l1_team_cap_value = 0;
 static BLASLONG l1_team_size_thresh = 0;
-static int l1_team_cap_from_env = 0;
-static int l1_team_thresh_from_env = 0;
-
-#define DEFAULT_L1_TEAM_CAP 1
-/* Approximate 2 MB threshold in elements (using sizeof(double) to stay conservative across types). */
-#define DEFAULT_L1_SIZE_THRESH_ELEMS ((2 * 1024 * 1024) / (int)sizeof(double))
 
 static void openblas_l1_team_cap_load(void) {
   if (l1_team_cap_init) return;
@@ -631,21 +625,13 @@ static void openblas_l1_team_cap_load(void) {
   const char *cap = getenv("OPENBLAS_L1_TEAM_CAP");
   if (cap && *cap) {
     int v = atoi(cap);
-    if (v >= 0) {
-      l1_team_cap_value = v;
-      l1_team_cap_from_env = 1;
-    }
+    if (v > 0) l1_team_cap_value = v;
   }
   const char *th = getenv("OPENBLAS_L1_SIZE_THRESH");
   if (th && *th) {
     long long v = atoll(th);
-    if (v >= 0) {
-      l1_team_size_thresh = (BLASLONG)v;
-      l1_team_thresh_from_env = 1;
-    }
+    if (v > 0) l1_team_size_thresh = (BLASLONG)v;
   }
-  if (!l1_team_cap_from_env) l1_team_cap_value = DEFAULT_L1_TEAM_CAP;
-  if (!l1_team_thresh_from_env) l1_team_size_thresh = DEFAULT_L1_SIZE_THRESH_ELEMS;
 }
 
 int openblas_l1_team_cap(int nthreads, BLASLONG m) {

@@ -251,7 +251,7 @@ static double bench_scopy_outer(size_t bytes, int threads, double *std_gbps, int
   double m = mean(times, runs);
   double sd = stdev(times, runs, m);
   double bw = (double)bytes / m / 1e9;
-  *std_gbps = (sd > 0 ? ((double)bytes / m / 1e9) * (sd / m) : 0.0);
+  *std_gbps = (sd > 0 ? (double)bytes / 1e9 / m * (sd / m) : 0.0);
   *runs_out = runs;
   free(src);
   free(dst);
@@ -301,7 +301,7 @@ int main(void) {
   int thread_sets[8];
   int nthreads = build_thread_list(thread_sets, (int)(sizeof(thread_sets)/sizeof(thread_sets[0])));
 
-  printf("test,size_bytes,threads,gbps,gflops,std_gbps,std_gflops,runs,checksum\n");
+  printf("test,size_bytes,threads,gbps,std_gbps,runs,checksum\n");
   for (int s = 0; s < nsizes; s++) {
     size_t bytes = sizes[s];
     double cs = checksum_bytes((uint8_t *)&bytes, sizeof(bytes));
@@ -312,16 +312,13 @@ int main(void) {
       int runs;
 
       bw = bench_memcpy_mt(bytes, thr, &std, &runs);
-      printf("memcpy,%zu,%d,%.3f,%.3f,%.3f,%.3f,%d,%.1f\n",
-             bytes, thr, bw, bw / 4.0, std, std / 4.0, runs, cs);
+      printf("memcpy,%zu,%d,%.3f,%.3f,%d,%.1f\n", bytes, thr, bw, std, runs, cs);
 
       bw = bench_scopy_outer(bytes, thr, &std, &runs);
-      printf("scopy_outer,%zu,%d,%.3f,%.3f,%.3f,%.3f,%d,%.1f\n",
-             bytes, thr, bw, bw / 4.0, std, std / 4.0, runs, cs);
+      printf("scopy_outer,%zu,%d,%.3f,%.3f,%d,%.1f\n", bytes, thr, bw, std, runs, cs);
 
       bw = bench_scopy_inner(bytes, thr, &std, &runs);
-      printf("scopy_inner,%zu,%d,%.3f,%.3f,%.3f,%.3f,%d,%.1f\n",
-             bytes, thr, bw, bw / 4.0, std, std / 4.0, runs, cs);
+      printf("scopy_inner,%zu,%d,%.3f,%.3f,%d,%.1f\n", bytes, thr, bw, std, runs, cs);
       /* Emit checksums so the work cannot be optimized away. */
     }
   }
