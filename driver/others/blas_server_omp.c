@@ -76,30 +76,19 @@ int blas_omp_threads_local = 0;
 extern int openblas_omp_adaptive_env(void);
 
 static void * blas_thread_buffer[MAX_PARALLEL_NUMBER][MAX_CPU_NUMBER];
+typedef union {
 #ifdef HAVE_C11
-static atomic_bool blas_buffer_inuse[MAX_PARALLEL_NUMBER];
+  atomic_bool inuse;
 #else
-static _Bool blas_buffer_inuse[MAX_PARALLEL_NUMBER];
+  _Bool inuse;
 #endif
+  char padding[64];
+} blas_buffer_inuse_t;
+
+static blas_buffer_inuse_t blas_buffer_inuse[MAX_PARALLEL_NUMBER];
 
 static void adjust_thread_buffers(void) {
-
-  int i=0, j=0;
-
-  //adjust buffer for each thread
-  for(i=0; i < MAX_PARALLEL_NUMBER; i++) {
-    for(j=0; j < blas_cpu_number; j++){
-      if(blas_thread_buffer[i][j] == NULL){
-        blas_thread_buffer[i][j] = blas_memory_alloc(2);
-      }
-    }
-    for(; j < MAX_CPU_NUMBER; j++){
-      if(blas_thread_buffer[i][j] != NULL){
-        blas_memory_free(blas_thread_buffer[i][j]);
-        blas_thread_buffer[i][j] = NULL;
-      }
-    }
-  }
+  return;
 }
 
 void goto_set_num_threads(int num_threads) {
@@ -305,6 +294,9 @@ static void exec_threads(int thread_num, blas_queue_t *queue, int buf_index){
 
   void *buffer, *sa, *sb;
   int pos=0, release_flag=0;
+  
+  static __thread void *tls_buffer = NULL;
+  static __thread int tls_in_use = 0;
 
   buffer = NULL;
   sa = queue -> sa;
@@ -322,14 +314,24 @@ static void exec_threads(int thread_num, blas_queue_t *queue, int buf_index){
   if ((sa == NULL) && (sb == NULL) && ((queue -> mode & BLAS_PTHREAD) == 0)) {
 
     pos= thread_num;
-    if (buf_index != -1) {
-        buffer = blas_thread_buffer[buf_index][pos];
+    
+    // Use implicit TLS to cache the buffer per-thread.
+    // Handles recursion by falling back to blas_memory_alloc if TLS buffer is busy.
+    if (!tls_in_use) {
+        if (unlikely(tls_buffer == NULL)) {
+            tls_buffer = blas_memory_alloc(2);
+        }
+        buffer = tls_buffer;
+        if (likely(buffer != NULL)) tls_in_use = 1;
+        release_flag = 0; 
+    } else {
+        // Recursion or contention: fallback to standard allocation
+        buffer = blas_memory_alloc(2);
+        release_flag = 1;
     }
 
-    //fallback or dynamic
     if(buffer==NULL) {
-      buffer = blas_memory_alloc(2);
-      release_flag=1;
+       return;
     }
 
     if (sa == NULL) {
@@ -401,7 +403,11 @@ fprintf(stderr,"UNHANDLED COMPLEX\n");
 
     }
 
-  if (release_flag) blas_memory_free(buffer);
+  if (release_flag) {
+    blas_memory_free(buffer);
+  } else {
+    if (buffer && buffer == tls_buffer) tls_in_use = 0;
+  }
 
 }
 
@@ -467,10 +473,10 @@ int exec_blas(BLASLONG num, blas_queue_t *queue){
     for(i=0; i < MAX_PARALLEL_NUMBER; i++) {
 #ifdef HAVE_C11
       _Bool inuse = false;
-      if(atomic_compare_exchange_weak(&blas_buffer_inuse[i], &inuse, true)) {
+      if(atomic_compare_exchange_weak(&blas_buffer_inuse[i].inuse, &inuse, true)) {
 #else
-      if(blas_buffer_inuse[i] == false) {
-        blas_buffer_inuse[i] = true;
+      if(blas_buffer_inuse[i].inuse == false) {
+        blas_buffer_inuse[i].inuse = true;
 #endif
         buf_index = i;
         break;
@@ -483,9 +489,9 @@ int exec_blas(BLASLONG num, blas_queue_t *queue){
   exec_blas_internal(num, queue, buf_index);
 
 #ifdef HAVE_C11
-  atomic_store(&blas_buffer_inuse[buf_index], false);
+  atomic_store(&blas_buffer_inuse[buf_index].inuse, false);
 #else
-  blas_buffer_inuse[buf_index] = false;
+  blas_buffer_inuse[buf_index].inuse = false;
 #endif
 
   return 0;
