@@ -38,15 +38,9 @@
 
 #include <stdio.h>
 #include "common.h"
-#include "bigvec.h"
 #ifdef FUNCTION_PROFILE
 #include "functable.h"
 #endif
-#if defined(SMP) && defined(_OPENMP)
-#include <omp.h>
-extern int omp_in_parallel(void);
-#endif
-#include <math.h>
 
 #ifndef CBLAS
 
@@ -109,34 +103,6 @@ FLOATRET NAME(blasint *N, FLOAT *x, blasint *INCX){
   IDEBUG_START;
 
   FUNCTION_PROFILE_START();
-
-#if defined(SMP) && defined(_OPENMP)
-  if (incx == 1 &&
-      ((size_t)n * COMPSIZE * sizeof(FLOAT) > openblas_bigvec_threshold_bytes()) &&
-      !omp_in_parallel()) {
-    double sumsq = 0.0;
-#ifdef COMPLEX
-    #pragma omp parallel for reduction(+:sumsq) schedule(static)
-    for (BLASLONG i = 0; i < n; i++) {
-      BLASLONG base = i * COMPSIZE;
-      double xr = x[base];
-      double xi = x[base + 1];
-      sumsq += xr * xr + xi * xi;
-    }
-#else
-    #pragma omp parallel for reduction(+:sumsq) schedule(static)
-    for (BLASLONG i = 0; i < n; i++) {
-      double v = x[i];
-      sumsq += v * v;
-    }
-#endif
-    ret = (FLOATRET)sqrt(sumsq);
-
-    FUNCTION_PROFILE_END(COMPSIZE, n, 2 * n);
-    IDEBUG_END;
-    return ret;
-  }
-#endif
 
   ret = (FLOATRET)NRM2_K(n, x, incx);
 
@@ -212,34 +178,6 @@ FLOAT CNAME(blasint n, FLOAT *x, blasint incx){
   IDEBUG_START;
 
   FUNCTION_PROFILE_START();
-
-#if defined(SMP) && defined(_OPENMP)
-  if (incx == 1 &&
-      ((size_t)n * COMPSIZE * sizeof(FLOAT) > openblas_bigvec_threshold_bytes()) &&
-      !omp_in_parallel()) {
-    double sumsq = 0.0;
-#ifdef COMPLEX
-    #pragma omp parallel for reduction(+:sumsq) schedule(static)
-    for (BLASLONG i = 0; i < n; i++) {
-      BLASLONG base = i * COMPSIZE;
-      double xr = x[base];
-      double xi = x[base + 1];
-      sumsq += xr * xr + xi * xi;
-    }
-#else
-    #pragma omp parallel for reduction(+:sumsq) schedule(static)
-    for (BLASLONG i = 0; i < n; i++) {
-      double v = x[i];
-      sumsq += v * v;
-    }
-#endif
-    ret = (FLOAT)sqrt(sumsq);
-
-    FUNCTION_PROFILE_END(COMPSIZE, n, 2 * n);
-    IDEBUG_END;
-    return ret;
-  }
-#endif
 
   ret = NRM2_K(n, x, incx);
 

@@ -57,18 +57,12 @@ void bench_op_single(size_t n, int op_type) {
     if (op_type == 0) cblas_dcopy(n, x, 1, y, 1);
     else if (op_type == 1) cblas_daxpy(n, 1.0, x, 1, y, 1);
     else if (op_type == 2) cblas_ddot(n, x, 1, y, 1);
-    else if (op_type == 3) cblas_dscal(n, 0.5, x, 1);
-    else if (op_type == 4) cblas_dnrm2(n, x, 1);
-    else if (op_type == 5) cblas_dasum(n, x, 1);
 
     start = get_time();
     while (get_time() - start < MIN_TIME || reps < MIN_REPEATS) {
         if (op_type == 0) cblas_dcopy(n, x, 1, y, 1);
         else if (op_type == 1) cblas_daxpy(n, 1.0, x, 1, y, 1);
         else if (op_type == 2) cblas_ddot(n, x, 1, y, 1);
-        else if (op_type == 3) cblas_dscal(n, 0.5, x, 1);
-        else if (op_type == 4) cblas_dnrm2(n, x, 1);
-        else if (op_type == 5) cblas_dasum(n, x, 1);
         reps++;
     }
     end = get_time();
@@ -91,18 +85,6 @@ void bench_op_single(size_t n, int op_type) {
         bw = (2.0 * size_bytes) / time_avg / 1e9;
         // sum += x*y. 1 mul, 1 add = 2 FLOPs per element
         gflops = (2.0 * n) / time_avg / 1e9;
-    } else if (op_type == 3) { // SCAL
-        // Read/Write X = 2 * size
-        bw = (2.0 * size_bytes) / time_avg / 1e9;
-        gflops = (1.0 * n) / time_avg / 1e9; // one multiply per element
-    } else if (op_type == 4) { // NRM2
-        // Read X once
-        bw = (1.0 * size_bytes) / time_avg / 1e9;
-        gflops = (2.0 * n) / time_avg / 1e9; // mul+add per element
-    } else if (op_type == 5) { // ASUM
-        // Read X once
-        bw = (1.0 * size_bytes) / time_avg / 1e9;
-        gflops = (1.0 * n) / time_avg / 1e9; // abs+add ~1 op counted
     }
 
     printf("N=%zu, Size=%.2f KB, Time=%.6f us, BW=%.2f GB/s, GFLOPS=%.2f\n", 
@@ -143,18 +125,12 @@ void* thread_func(void* arg) {
     if (t_arg->op_type == 0) cblas_dcopy(n, x, 1, y, 1);
     else if (t_arg->op_type == 1) cblas_daxpy(n, 1.0, x, 1, y, 1);
     else if (t_arg->op_type == 2) cblas_ddot(n, x, 1, y, 1);
-    else if (t_arg->op_type == 3) cblas_dscal(n, 0.5, x, 1);
-    else if (t_arg->op_type == 4) cblas_dnrm2(n, x, 1);
-    else if (t_arg->op_type == 5) cblas_dasum(n, x, 1);
 
     double start = get_time();
     for (int i = 0; i < t_arg->iterations; i++) {
         if (t_arg->op_type == 0) cblas_dcopy(n, x, 1, y, 1);
         else if (t_arg->op_type == 1) cblas_daxpy(n, 1.0, x, 1, y, 1);
         else if (t_arg->op_type == 2) cblas_ddot(n, x, 1, y, 1);
-        else if (t_arg->op_type == 3) cblas_dscal(n, 0.5, x, 1);
-        else if (t_arg->op_type == 4) cblas_dnrm2(n, x, 1);
-        else if (t_arg->op_type == 5) cblas_dasum(n, x, 1);
     }
     double end = get_time();
 
@@ -202,15 +178,6 @@ void bench_op_concurrent(size_t n, int num_threads, int op_type) {
     } else if (op_type == 2) { // DOT
         agg_bw = (2.0 * total_size_bytes * num_threads) / avg_time_per_op / 1e9;
         agg_gflops = (2.0 * n * num_threads) / avg_time_per_op / 1e9;
-    } else if (op_type == 3) { // SCAL
-        agg_bw = (2.0 * total_size_bytes * num_threads) / avg_time_per_op / 1e9;
-        agg_gflops = (1.0 * n * num_threads) / avg_time_per_op / 1e9;
-    } else if (op_type == 4) { // NRM2
-        agg_bw = (1.0 * total_size_bytes * num_threads) / avg_time_per_op / 1e9;
-        agg_gflops = (2.0 * n * num_threads) / avg_time_per_op / 1e9;
-    } else if (op_type == 5) { // ASUM
-        agg_bw = (1.0 * total_size_bytes * num_threads) / avg_time_per_op / 1e9;
-        agg_gflops = (1.0 * n * num_threads) / avg_time_per_op / 1e9;
     }
     
     printf("Concurrent: Threads=%d, N=%zu, Size=%.2f KB, AvgTime=%.6f us, AggBW=%.2f GB/s, AggGFLOPS=%.2f\n", 
@@ -223,7 +190,7 @@ void bench_op_concurrent(size_t n, int num_threads, int op_type) {
 int main(int argc, char** argv) {
     if (argc < 3) {
         printf("Usage: %s <op_type> <mode> [args]\n", argv[0]);
-        printf("Op Types: 0=COPY, 1=AXPY, 2=DOT, 3=SCAL, 4=NRM2, 5=ASUM\n");
+        printf("Op Types: 0=COPY, 1=AXPY, 2=DOT\n");
         printf("Mode 0: Single Sweep\n");
         printf("Mode 1: Concurrent Sweep <num_concurrent_threads>\n");
         return 1;

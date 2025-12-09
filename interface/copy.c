@@ -37,9 +37,7 @@
 /*********************************************************************/
 
 #include <stdio.h>
-#include <stdlib.h>
 #include "common.h"
-#include "bigvec.h"
 #ifdef FUNCTION_PROFILE
 #include "functable.h"
 #endif
@@ -82,8 +80,7 @@ void CNAME(blasint n, FLOAT *x, blasint incx, FLOAT *y, blasint incy){
   if (incy < 0) y -= (n - 1) * incy * COMPSIZE;
 
 #if defined(SMP) && defined(_OPENMP)
-  if (incx == 1 && incy == 1 &&
-      ((size_t)n * COMPSIZE * sizeof(FLOAT) > openblas_bigvec_threshold_bytes())) {
+  if (incx == 1 && incy == 1 && (n * COMPSIZE * sizeof(FLOAT) > 131072)) {
      if (!omp_in_parallel()) {
          #pragma omp parallel for schedule(static)
          for (BLASLONG i = 0; i < n * COMPSIZE; i++) {

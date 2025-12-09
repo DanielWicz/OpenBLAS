@@ -63,7 +63,7 @@ run_and_avg() {
     rm -rf "$tmpdir"
 }
 
-# Op Types: 0=COPY, 1=AXPY, 2=DOT, 3=SCAL, 4=NRM2, 5=ASUM
+# Op Types: 0=COPY, 1=AXPY, 2=DOT
 
 echo "=== COPY Benchmark ==="
 echo "Running Single Thread Sweep (COPY)..."
@@ -82,23 +82,5 @@ echo "Running Single Thread Sweep (DOT)..."
 OMP_NUM_THREADS=8 run_and_avg benchmark_optimization/result_dot_single.txt 2 0
 echo "Running Concurrent Sweep (DOT, 8 threads)..."
 OMP_NUM_THREADS=1 run_and_avg benchmark_optimization/result_dot_conc_8.txt 2 1 8
-
-echo "=== SCAL Benchmark ==="
-echo "Running Single Thread Sweep (SCAL)..."
-OMP_NUM_THREADS=8 run_and_avg benchmark_optimization/result_scal_single.txt 3 0
-echo "Running Concurrent Sweep (SCAL, 8 threads)..."
-OMP_NUM_THREADS=1 run_and_avg benchmark_optimization/result_scal_conc_8.txt 3 1 8
-
-echo "=== NRM2 Benchmark ==="
-echo "Running Single Thread Sweep (NRM2)..."
-OMP_NUM_THREADS=8 run_and_avg benchmark_optimization/result_nrm2_single.txt 4 0
-echo "Running Concurrent Sweep (NRM2, 8 threads)..."
-OMP_NUM_THREADS=1 run_and_avg benchmark_optimization/result_nrm2_conc_8.txt 4 1 8
-
-echo "=== ASUM Benchmark ==="
-echo "Running Single Thread Sweep (ASUM)..."
-OMP_NUM_THREADS=8 run_and_avg benchmark_optimization/result_asum_single.txt 5 0
-echo "Running Concurrent Sweep (ASUM, 8 threads)..."
-OMP_NUM_THREADS=1 run_and_avg benchmark_optimization/result_asum_conc_8.txt 5 1 8
 
 echo "Done. Results in benchmark_optimization/result_*.txt"
