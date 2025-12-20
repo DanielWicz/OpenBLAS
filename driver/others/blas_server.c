@@ -637,9 +637,7 @@ int exec_blas_async(BLASLONG pos, blas_queue_t *queue){
 
 #ifdef SMP_SERVER
   // Handle lazy re-init of the thread-pool after a POSIX fork
-  LOCK_COMMAND(&server_lock);
   if (unlikely(blas_server_avail == 0)) blas_thread_init();
-  UNLOCK_COMMAND(&server_lock);
 #endif
   BLASLONG i = 0;
   blas_queue_t *current = queue;
