@@ -227,6 +227,10 @@ gotoblas_t TABLE_NAME = {
   ssyrk_direct_alpha_betaUTTS,
   ssyrk_direct_alpha_betaLNTS,
   ssyrk_direct_alpha_betaLTTS,
+  ssyr2k_direct_alpha_betaUNTS,
+  ssyr2k_direct_alpha_betaUTTS,
+  ssyr2k_direct_alpha_betaLNTS,
+  ssyr2k_direct_alpha_betaLTTS,
 #endif
 
   sgemm_kernelTS, sgemm_betaTS,

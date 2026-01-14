@@ -190,8 +190,8 @@ typedef struct Namelist Namelist;
 #define c_abs(z) (cabsf(Cf(z)))
 #define c_cos(R,Z) { pCf(R)=ccos(Cf(Z)); }
 #ifdef _MSC_VER
-#define c_div(c, a, b) {float n=crealf(_FCmulcc(Cf(b),conjf(Cf(b)))); _Fcomplex z=_FCmulcc(Cf(a),conjf(Cf(b))); pCf(c)=_FCbuild(crealf(z)/n,cimagf(z)/n);}
-#define z_div(c, a, b) {double n=creal(_Cmulcc(Cd(b),conj(Cd(b)))); _Dcomplex z=_Cmulcc(Cd(a),conj(Cd(b))); pCd(c)=_Cbuild(creal(z)/n,cimag(z)/n);}
+#define c_div(c, a, b) {float nenn=crealf(_FCmulcc(Cf(b),conjf(Cf(b)))); _Fcomplex zaehl=_FCmulcc(Cf(a),conjf(Cf(b))); pCf(c)=_FCbuild(crealf(zaehl)/nenn,cimagf(zaehl)/nenn);}
+#define z_div(c, a, b) {double nenn=creal(_Cmulcc(Cd(b),conj(Cd(b)))); _Dcomplex zaehl=_Cmulcc(Cd(a),conj(Cd(b))); pCd(c)=_Cbuild(creal(zaehl)/nenn,cimag(zaehl)/nenn);}
 #else
 #define c_div(c, a, b) {pCf(c) = Cf(a)/Cf(b);}
 #define z_div(c, a, b) {pCd(c) = Cd(a)/Cd(b);}

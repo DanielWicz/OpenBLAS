@@ -52,10 +52,7 @@ static void dgemv_kernel_4x2(BLASLONG n, FLOAT *a0, FLOAT *a1, FLOAT *xo, FLOAT 
 
 static void dgemv_kernel_4x1(BLASLONG n, FLOAT *a0, FLOAT *xo, FLOAT *y, FLOAT alpha)
 {
-    BLASLONG i;
-    FLOAT x[1]  __attribute__ ((aligned (16)));
-
-    FLOAT x0,x1;
+    FLOAT x0;
     x0 = xo[0] * alpha;
 
     __vector double   v_x0 = {x0,x0};

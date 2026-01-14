@@ -177,6 +177,7 @@
     goto_set_num_threads,
     openblas_get_config,
     openblas_get_corename,
+    openblas_set_threads_callback_function,
 );
 
 @misc_underscore_objs = (

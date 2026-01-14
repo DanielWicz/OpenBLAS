@@ -93,9 +93,9 @@ typedef FLOAT v4sf_t __attribute__ ((vector_size (16)));
           rowC[0] += result[1] * alpha;
 #endif
 #define KERNEL(i) \
-          rowA = (vec_t *)&AO[i<< 3];\
-          rowB = *((__vector_pair *)((void *)&BO[i << 3]));\
-          rowB1 = *((__vector_pair *)((void *)&BO[(i << 3) + 4]));\
+          rowA = (vec_t *)&AO[(i)<< 3];\
+          rowB = *((__vector_pair *)((void *)&BO[(i) << 3]));\
+          rowB1 = *((__vector_pair *)((void *)&BO[((i) << 3) + 4]));\
           __builtin_mma_xvf64gerpp(&acc0, rowB, rowA[0]);\
           __builtin_mma_xvf64gerpp(&acc1, rowB1, rowA[0]);\
           __builtin_mma_xvf64gerpp(&acc2, rowB, rowA[1]);\

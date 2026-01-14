@@ -55,6 +55,7 @@ USE_DIRECT_SGEMM = 1
 USE_DIRECT_SSYMM = 1
 USE_DIRECT_STRMM = 1
 USE_DIRECT_SSYRK = 1
+USE_DIRECT_SSYR2K = 1
 endif
 
 ifeq ($(ARCH), riscv64)
@@ -173,6 +174,17 @@ endif
 endif
 endif
 
+ifdef USE_DIRECT_SSYR2K
+ifndef SSYR2KDIRECTKERNEL_ALPHA_BETA
+ifeq ($(ARCH), arm64)
+ifeq ($(TARGET_CORE), ARMV9SME)
+HAVE_SME = 1
+endif
+SSYR2KDIRECTKERNEL_ALPHA_BETA = ssyr2k_direct_alpha_beta_arm64_sme1.c
+endif
+endif
+endif
+
 ifeq ($(BUILD_BFLOAT16), 1)
 ifndef BGEMMKERNEL
 BGEMM_BETA = ../generic/gemm_beta.c
@@ -277,6 +289,16 @@ ifeq ($(ARCH), arm64)
 SKERNELOBJS += \
 	ssyrk_direct_alpha_betaUN$(TSUFFIX).$(SUFFIX) ssyrk_direct_alpha_betaUT$(TSUFFIX).$(SUFFIX) \
 	ssyrk_direct_alpha_betaLN$(TSUFFIX).$(SUFFIX) ssyrk_direct_alpha_betaLT$(TSUFFIX).$(SUFFIX)
+endif
+endif
+
+ifdef USE_DIRECT_SSYR2K
+ifeq ($(ARCH), arm64)
+SKERNELOBJS += \
+	ssyr2k_direct_alpha_betaUN$(TSUFFIX).$(SUFFIX) ssyr2k_direct_alpha_betaUN$(TSUFFIX).$(SUFFIX) \
+	ssyr2k_direct_alpha_betaUT$(TSUFFIX).$(SUFFIX) ssyr2k_direct_alpha_betaUT$(TSUFFIX).$(SUFFIX) \
+	ssyr2k_direct_alpha_betaLN$(TSUFFIX).$(SUFFIX) ssyr2k_direct_alpha_betaLN$(TSUFFIX).$(SUFFIX) \
+	ssyr2k_direct_alpha_betaLT$(TSUFFIX).$(SUFFIX) ssyr2k_direct_alpha_betaLT$(TSUFFIX).$(SUFFIX)
 endif
 endif
 
@@ -1190,6 +1212,20 @@ $(KDIR)ssyrk_direct_alpha_betaLN$(TSUFFIX).$(SUFFIX) : $(KERNELDIR)/$(SSYRKDIREC
 
 $(KDIR)ssyrk_direct_alpha_betaLT$(TSUFFIX).$(SUFFIX) : $(KERNELDIR)/$(SSYRKDIRECTKERNEL_ALPHA_BETA)
 	$(CC) $(CFLAGS) -c -UDOUBLE -UCOMPLEX -UUPPER -DTRANSA $< -o $@
+endif
+endif
+
+ifdef USE_DIRECT_SSYR2K
+ifeq ($(ARCH), arm64)
+$(KDIR)ssyr2k_direct_alpha_betaUN$(TSUFFIX).$(SUFFIX) : $(KERNELDIR)/$(SSYR2KDIRECTKERNEL_ALPHA_BETA)
+	$(CC) $(CFLAGS) -c -UDOUBLE -UCOMPLEX -DUPPER -UTRANSA $< -o $@
+$(KDIR)ssyr2k_direct_alpha_betaUT$(TSUFFIX).$(SUFFIX) : $(KERNELDIR)/$(SSYR2KDIRECTKERNEL_ALPHA_BETA)
+	$(CC) $(CFLAGS) -c -UDOUBLE -UCOMPLEX -DUPPER -DTRANSA $< -o $@
+$(KDIR)ssyr2k_direct_alpha_betaLN$(TSUFFIX).$(SUFFIX) : $(KERNELDIR)/$(SSYR2KDIRECTKERNEL_ALPHA_BETA)
+	$(CC) $(CFLAGS) -c -UDOUBLE -UCOMPLEX -UUPPER -UTRANSA $< -o $@
+$(KDIR)ssyr2k_direct_alpha_betaLT$(TSUFFIX).$(SUFFIX) : $(KERNELDIR)/$(SSYR2KDIRECTKERNEL_ALPHA_BETA)
+	$(CC) $(CFLAGS) -c -UDOUBLE -UCOMPLEX -UUPPER -DTRANSA $< -o $@
+
 endif
 endif
 
