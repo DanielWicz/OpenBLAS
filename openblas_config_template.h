@@ -39,7 +39,7 @@ typedef unsigned long BLASULONG;
 typedef uint16_t bfloat16;
 #endif
 
-#if defined(__GNUC__) && (__GNUC__ >= 12)
+#if defined(__GNUC__) && (__GNUC__ > 12)
 typedef _Float16 hfloat16;
 #else
 #include <stdint.h>

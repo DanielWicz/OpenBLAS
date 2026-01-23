@@ -184,11 +184,11 @@ static int init_amxtile_permission() {
 }
 #endif
 
-#ifdef SMP
 #ifdef DYNAMIC_ARCH
 extern char* gotoblas_corename(void);
 #endif
 
+#ifdef SMP
 #if defined(DYNAMIC_ARCH) || defined(NEOVERSEV1)
 static inline int get_gemm_optimal_nthreads_neoversev1(double MNK, int ncpu) {
   return
@@ -266,6 +266,7 @@ void NAME(char *TRANSA, char *TRANSB,
 
   int transa, transb, nrowa, nrowb;
   blasint info;
+  int order = -1;
 
   char transA, transB;
   IFLOAT *buffer;
@@ -424,30 +425,6 @@ void CNAME(enum CBLAS_ORDER order, enum CBLAS_TRANSPOSE TransA, enum CBLAS_TRANS
 
   PRINT_DEBUG_CNAME;
 
-#if !defined(COMPLEX) && !defined(DOUBLE) && !defined(BFLOAT16)  && !defined(HFLOAT16)
-#if defined(ARCH_x86) && (defined(USE_SGEMM_KERNEL_DIRECT)||defined(DYNAMIC_ARCH))
-#if defined(DYNAMIC_ARCH)
-  if (support_avx512() )
-#endif
-  if (beta == 0 && alpha == 1.0 && order == CblasRowMajor && TransA == CblasNoTrans && TransB == CblasNoTrans && SGEMM_DIRECT_PERFORMANT(m,n,k)) {
-	SGEMM_DIRECT(m, n, k, a, lda, b, ldb, c, ldc);
-	return;
-  }
-#endif
-#if defined(ARCH_ARM64) && (defined(USE_SGEMM_KERNEL_DIRECT)||defined(DYNAMIC_ARCH))
-#if defined(DYNAMIC_ARCH)
- if (support_sme1())
-#endif
-  if (beta == 0 && alpha == 1.0 && order == CblasRowMajor && TransA == CblasNoTrans && TransB == CblasNoTrans) {
-	SGEMM_DIRECT(m, n, k, a, lda, b, ldb, c, ldc);
-	return;
-  }else if (order == CblasRowMajor && TransA == CblasNoTrans && TransB == CblasNoTrans) {
-	SGEMM_DIRECT_ALPHA_BETA(m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
-	return;
-  }
-#endif
-#endif
-
 #ifndef COMPLEX
   args.alpha = (void *)&alpha;
   args.beta  = (void *)&beta;
@@ -563,6 +540,40 @@ void CNAME(enum CBLAS_ORDER order, enum CBLAS_TRANSPOSE TransA, enum CBLAS_TRANS
     BLASFUNC(xerbla)(ERROR_NAME, &info, sizeof(ERROR_NAME));
     return;
   }
+
+
+  if ((args.m == 0) || (args.n == 0)) return;
+#if !defined(COMPLEX) && !defined(DOUBLE) && !defined(BFLOAT16)  && !defined(HFLOAT16)
+#if defined(ARCH_x86) && (defined(USE_SGEMM_KERNEL_DIRECT)||defined(DYNAMIC_ARCH))
+#if defined(DYNAMIC_ARCH)
+  if (support_avx512() )
+#endif
+  if (order == CblasRowMajor && beta == 0 && alpha == 1.0 && TransA == CblasNoTrans && TransB == CblasNoTrans && SGEMM_DIRECT_PERFORMANT(m,n,k)) {
+        SGEMM_DIRECT(m, n, k, a, lda, b, ldb, c, ldc);
+        return;
+  }
+#endif
+#if defined(ARCH_ARM64) && (defined(USE_SGEMM_KERNEL_DIRECT)||defined(DYNAMIC_ARCH))
+#if defined(DYNAMIC_ARCH)
+if (strcmp(gotoblas_corename(), "armv9sme") == 0
+#if defined(__clang__)
+ || strcmp(gotoblas_corename(), "vortexm4") == 0
+#endif
+)
+// if (support_sme1())
+#endif
+  if (order == CblasRowMajor && m==lda && n ==ldb && k==ldc && beta == 0 && alpha == 1.0 && TransA == CblasNoTrans && TransB == CblasNoTrans&& SGEMM_DIRECT_PERFORMANT(m,n,k)) {
+        SGEMM_DIRECT(m, n, k, a, lda, b, ldb, c, ldc);
+        return;
+  }
+else
+ if (order == CblasRowMajor && m==lda && n==ldb && k==ldc && TransA == CblasNoTrans && TransB == CblasNoTrans&& SGEMM_DIRECT_PERFORMANT(m,n,k)) {
+        SGEMM_DIRECT_ALPHA_BETA(m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+        return;
+  }
+
+#endif
+#endif
 
 #endif
 

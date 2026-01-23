@@ -182,3 +182,6 @@ ARCH_RISCV64
 OS_WINDOWS
 #endif
 
+#if defined(TARGET_OS_IPHONE)
+OS_IOS
+#endif

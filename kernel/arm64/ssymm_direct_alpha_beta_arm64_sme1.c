@@ -14,11 +14,23 @@
 #include <arm_sme.h>
 #endif
 
-/* Function prototypes */
-extern void sgemm_direct_sme1_preprocess(uint64_t nbr, uint64_t nbc,\
-                                  const float * restrict a, float *  a_mod) __asm__("sgemm_direct_sme1_preprocess");
+#if defined(DYNAMIC_ARCH)
+#define COMBINE(a,b) a ## b
+#define COMBINE2(a,b) COMBINE(a,b)
+#define SGEMM_PREPROCESS_BASE sgemm_direct_sme1_preprocess
+#define SGEMM_PREPROCESS COMBINE2(SGEMM_PREPROCESS_BASE,TS)
+#define SGEMM_DIRECT2X2_BASE sgemm_direct_alpha_beta_sme1_2VLx2VL
+#define SGEMM_DIRECT2X2 COMBINE2(SGEMM_DIRECT2X2_BASE,TS)
+#else
+#define SGEMM_PREPROCESS sgemm_direct_sme1_preprocess
+#define SGEMM_DIRECT2X2 sgemm_direct_alpha_beta_sme1_2VLx2VL
+#endif
 
-extern void sgemm_direct_alpha_beta_sme1_2VLx2VL(uint64_t m, uint64_t k, uint64_t n, const float* alpha,\
+/* Function prototypes */
+extern void SGEMM_PREPROCESS(uint64_t nbr, uint64_t nbc,\
+                                  const float * restrict a, float *  a_mod);
+
+extern void SGEMM_DIRECT2X2(uint64_t m, uint64_t k, uint64_t n, const float* alpha,\
                                    const float *ba, const float *restrict bb, const float* beta,\
                                    float *restrict C);
 /* Function Definitions */
@@ -216,7 +228,7 @@ void CNAME(BLASLONG M, BLASLONG N, float alpha, float *__restrict A,
 #endif
 
   /* Calculate C = alpha*A*B + beta*C */
-  sgemm_direct_alpha_beta_sme1_2VLx2VL(M, M, N, &alpha, A_mod, B, &beta, R);
+  SGEMM_DIRECT2X2(M, M, N, &alpha, A_mod, B, &beta, R);
   free(A_mod);
 }
 

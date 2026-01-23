@@ -99,6 +99,7 @@ jobs:
         run: |
           export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"
           export CC="/opt/homebrew/opt/llvm/bin/clang"
+          export RANLIB=llvm-ranlib
           case "${{ matrix.build }}" in
             "make")
               make -j$(nproc) DYNAMIC_ARCH=1 USE_OPENMP=${{matrix.openmp}} INTERFACE64=${{matrix.ilp64}} FC="ccache ${{ matrix.fortran }}"

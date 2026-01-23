@@ -216,6 +216,7 @@ gotoblas_t TABLE_NAME = {
 #endif
 #ifdef ARCH_ARM64
   sgemm_directTS,
+  sgemm_direct_performantTS,	
   sgemm_direct_alpha_betaTS,
   ssymm_direct_alpha_betaLUTS,
   ssymm_direct_alpha_betaLLTS,
@@ -1193,7 +1194,7 @@ static void init_parameter(void) {
 
       TABLE_NAME.dgemm_p = 112;
       TABLE_NAME.dgemm_q = 289;
-      TABLE_NAME.dgemm_r = 342;
+      TABLE_NAME.dgemm_r = 353;
 
       TABLE_NAME.cgemm_p = 128;
       TABLE_NAME.cgemm_q = 256;

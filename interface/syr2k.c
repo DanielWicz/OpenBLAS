@@ -345,12 +345,21 @@ void CNAME(enum CBLAS_ORDER order, enum CBLAS_UPLO Uplo, enum CBLAS_TRANSPOSE Tr
     return;
   }
 
+  if (args.n == 0) return;
+
+#ifdef DYNAMIC_ARCH
+extern char* gotoblas_corename(void);
+#endif
+
 #if !defined(COMPLEX) && !defined(DOUBLE) && !defined(BFLOAT16)  && !defined(HFLOAT16)
 #if defined(ARCH_ARM64) && (defined(USE_SSYR2K_KERNEL_DIRECT)||defined(DYNAMIC_ARCH))
 #if defined(DYNAMIC_ARCH)
- if (support_sme1())
+if (strcmp(gotoblas_corename(), "armv9sme") == 0
+#if defined(__clang__)
+ || strcmp(gotoblas_corename(), "vortexm4") == 0
 #endif
-   if (args.n == 0) return;
+)
+#endif
    if (order == CblasRowMajor && n == ldc) {
      if (Trans == CblasNoTrans && k == lda && k == ldb) {
       if (Uplo == CblasUpper) {
@@ -376,7 +385,6 @@ void CNAME(enum CBLAS_ORDER order, enum CBLAS_UPLO Uplo, enum CBLAS_TRANSPOSE Tr
 
 #endif
 
-  if (args.n == 0) return;
 
   IDEBUG_START;
 

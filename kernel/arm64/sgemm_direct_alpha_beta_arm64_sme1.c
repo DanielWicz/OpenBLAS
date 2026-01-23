@@ -8,15 +8,28 @@
 #include <inttypes.h>
 #include <math.h>
 #include "sme_abi.h"
+
+#if defined(DYNAMIC_ARCH)
+#define COMBINE(a,b) a ## b
+#define COMBINE2(a,b) COMBINE(a,b)
+#define SME1_PREPROCESS_BASE sgemm_direct_sme1_preprocess
+#define SME1_PREPROCESS COMBINE2(SME1_PREPROCESS_BASE,TS)
+#define SME1_KERNEL2X2_BASE sgemm_direct_alpha_beta_sme1_2VLx2VL
+#define SME1_KERNEL2X2 COMBINE2(SME1_KERNEL2X2_BASE,TS)
+#else
+#define SME1_PREPROCESS sgemm_direct_sme1_preprocess
+#define SME1_KERNEL2X2  sgemm_direct_alpha_beta_sme1_2VLx2VL
+#endif
+
+/* Function prototypes */
+extern void SME1_PREPROCESS(uint64_t nbr, uint64_t nbc,\
+                                  const float * restrict a, float *  a_mod);
+
 #if defined(HAVE_SME)
 
 #if defined(__ARM_FEATURE_SME) && defined(__clang__) && __clang_major__ >= 16
 #include <arm_sme.h>
 #endif
-
-/* Function prototypes */
-extern void sgemm_direct_sme1_preprocess(uint64_t nbr, uint64_t nbc,\
-                                  const float * restrict a, float *  a_mod) __asm__("sgemm_direct_sme1_preprocess");
 
 /* Function Definitions */
 static uint64_t sve_cntw() {
@@ -99,10 +112,11 @@ kernel_2x2(const float *A, const float *B, float *C, size_t shared_dim,
     svst1_hor_za32(/*tile*/2, /*slice*/i, pg_c_0, &C[i * ldc]);
     svst1_hor_za32(/*tile*/3, /*slice*/i, pg_c_1, &C[i * ldc + svl]);
   }
+return;
 }
 
 __arm_new("za") __arm_locally_streaming
-void sgemm_direct_alpha_beta_sme1_2VLx2VL(uint64_t m, uint64_t k, uint64_t n, const float* alpha,\
+void SME1_KERNEL2X2(uint64_t m, uint64_t k, uint64_t n, const float* alpha,\
                                    const float *ba, const float *restrict bb, const float* beta,\
                                    float *restrict C) {
 
@@ -125,6 +139,7 @@ void sgemm_direct_alpha_beta_sme1_2VLx2VL(uint64_t m, uint64_t k, uint64_t n, co
   // Block over row dimension of C
   for (; row_idx < num_rows; row_idx += row_batch) {
     row_batch = MIN(row_batch, num_rows - row_idx);
+
     uint64_t col_idx = 0;
     uint64_t col_batch = 2*svl;
 
@@ -141,9 +156,9 @@ void sgemm_direct_alpha_beta_sme1_2VLx2VL(uint64_t m, uint64_t k, uint64_t n, co
 }
 
 #else
-void sgemm_direct_alpha_beta_sme1_2VLx2VL(uint64_t m, uint64_t k, uint64_t n, const float* alpha,\
+void SME1_KERNEL2X2(uint64_t m, uint64_t k, uint64_t n, const float* alpha,\
                                    const float *ba, const float *restrict bb, const float* beta,\
-                                   float *restrict C){}
+                                   float *restrict C){fprintf(stderr,"empty sgemm_alpha_beta2x2 should never get called!!!\n");}
 #endif
 
 /*void sgemm_kernel_direct (BLASLONG M, BLASLONG N, BLASLONG K,\
@@ -166,7 +181,7 @@ void CNAME (BLASLONG M, BLASLONG N, BLASLONG K, float alpha, float * __restrict 
 	     * of reading directly from vector (z) registers.
 	     * */
         asm volatile("" : : :"p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7",
-                         "p8", "p9", "p10", "p11", "p12", "p13", "p14", "p15",
+                         "p8", "p9", "p10", "p11", "p12", "p13", "p14", "p15", "d8", "d9", "d10", "d11", "d12", "d13", "d14", "d15",
                          "z0", "z1", "z2", "z3", "z4", "z5", "z6", "z7",
                          "z8", "z9", "z10", "z11", "z12", "z13", "z14", "z15",
                          "z16", "z17", "z18", "z19", "z20", "z21", "z22", "z23",
@@ -175,17 +190,19 @@ void CNAME (BLASLONG M, BLASLONG N, BLASLONG K, float alpha, float * __restrict 
         /* Pre-process the left matrix to make it suitable for 
            matrix sum of outer-product calculation
          */
-        sgemm_direct_sme1_preprocess(M, K, A, A_mod);
+
+        SME1_PREPROCESS(M, K, A, A_mod);
        
         asm volatile("" : : :"p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7",
-                         "p8", "p9", "p10", "p11", "p12", "p13", "p14", "p15",
+                         "p8", "p9", "p10", "p11", "p12", "p13", "p14", "p15","d8", "d9", "d10", "d11", "d12", "d13", "d14", "d15",
                          "z0", "z1", "z2", "z3", "z4", "z5", "z6", "z7",
                          "z8", "z9", "z10", "z11", "z12", "z13", "z14", "z15",
                          "z16", "z17", "z18", "z19", "z20", "z21", "z22", "z23",
                          "z24", "z25", "z26", "z27", "z28", "z29", "z30", "z31");
 
         /* Calculate C = alpha*A*B + beta*C */
-        sgemm_direct_alpha_beta_sme1_2VLx2VL(M, K, N, &alpha, A_mod, B, &beta, R);
+
+        SME1_KERNEL2X2(M, K, N, &alpha, A_mod, B, &beta, R);
 
         free(A_mod);
 }
@@ -194,6 +211,6 @@ void CNAME (BLASLONG M, BLASLONG N, BLASLONG K, float alpha, float * __restrict 
 
 void CNAME (BLASLONG M, BLASLONG N, BLASLONG K, float alpha, float * __restrict A,\
             BLASLONG strideA, float * __restrict B, BLASLONG strideB ,\
-            float beta, float * __restrict R, BLASLONG strideR){}
- 
+            float beta, float * __restrict R, BLASLONG strideR){fprintf(stderr,"empty sgemm_direct_alpha_beta should not be called!!!\n");}
 #endif
+

@@ -99,7 +99,7 @@ struct riscv_hwprobe {
 #define		RISCV_HWPROBE_IMA_V		(1 << 2)
 #define		RISCV_HWPROBE_EXT_ZFH		(1 << 27)
 #define		RISCV_HWPROBE_EXT_ZVFH		(1 << 30)
-#define		RISCV_HWPROBE_EXT_ZVFBFWMA	(1 << 54)
+#define		RISCV_HWPROBE_EXT_ZVFBFWMA	(1ULL << 54)
 
 #ifndef NR_riscv_hwprobe
 #ifndef NR_arch_specific_syscall

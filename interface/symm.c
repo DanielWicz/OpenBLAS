@@ -97,6 +97,9 @@
 #define GEMM_MULTITHREAD_THRESHOLD 4
 #endif
 
+#ifdef DYNAMIC_ARCH
+extern char* gotoblas_corename(void);                                
+#endif                                                               
 
 #ifdef SMP
 #ifndef COMPLEX
@@ -374,7 +377,11 @@ void CNAME(enum CBLAS_ORDER order, enum CBLAS_SIDE Side, enum CBLAS_UPLO Uplo,
 #if !defined(COMPLEX) && !defined(DOUBLE) && !defined(BFLOAT16)  && !defined(HFLOAT16)
 #if defined(ARCH_ARM64) && (defined(USE_SSYMM_KERNEL_DIRECT)||defined(DYNAMIC_ARCH))
 #if defined(DYNAMIC_ARCH)
- if (support_sme1())
+if (strcmp(gotoblas_corename(), "armv9sme") == 0
+#if defined(__clang__)
+ || strcmp(gotoblas_corename(), "vortexm4") == 0
+#endif
+)
 #endif
    if (args.m == 0 || args.n == 0) return;
    if (order == CblasRowMajor && m == lda && n == ldb && n == ldc)

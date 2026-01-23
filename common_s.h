@@ -231,7 +231,7 @@
 #define SGEMM_DIRECT_PERFORMANT gotoblas -> sgemm_direct_performant
 #define  SGEMM_DIRECT		gotoblas -> sgemm_direct
 #elif ARCH_ARM64
-#define SGEMM_DIRECT_PERFORMANT    sgemm_direct_performant
+#define SGEMM_DIRECT_PERFORMANT gotoblas -> sgemm_direct_performant
 #define  SGEMM_DIRECT		gotoblas -> sgemm_direct
 #define  SGEMM_DIRECT_ALPHA_BETA		gotoblas -> sgemm_direct_alpha_beta
 #define  SSYMM_DIRECT_ALPHA_BETA_LU		gotoblas -> ssymm_direct_alpha_betaLU

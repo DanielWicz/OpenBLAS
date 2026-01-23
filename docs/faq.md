@@ -47,7 +47,8 @@ You can find the full list of modifications in Changelog.txt.
 The detailed explanation is probably in the original publication authored by Kazushige Goto - Goto, Kazushige; van de Geijn, Robert A; Anatomy of high-performance matrix multiplication. ACM Transactions on Mathematical Software (TOMS). Volume 34 Issue 3, May 2008
 While this article is paywalled and too old for preprints to be available on arxiv.org, more recent
 publications like https://arxiv.org/pdf/1609.00076 contain at least a brief description of the algorithm.
-In practice, the values are derived by experimentation to yield the block sizes that give the highest performance. A general rule of thumb for selecting a starting point seems to be that PxQ is about half the size of L2 cache.
+In practice, the values are derived by experimentation to yield the block sizes that give the highest performance. A general rule of thumb for selecting a starting point seems to be that PxQ is about half the size of L2 cache. R needs to be greater than the bigger of P and Q by
+at least 64, or bad things will happen with the work splitting in (at least) POTRF.
 
 ### <a name="reportbug"></a>How can I report a bug?
 

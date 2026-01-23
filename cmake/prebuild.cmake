@@ -1255,7 +1255,7 @@ endif ()
     set(ZGEMM_UNROLL_M 4)
     set(ZGEMM_UNROLL_N 4)
     set(SYMV_P 16)
-  elseif ("${TCORE}" STREQUAL "VORTEX")
+  elseif ("${TCORE}" STREQUAL "VORTEX" OR "${TCORE}" STREQUAL "VORTEXM4")
     file(APPEND ${TARGET_CONF_TEMP}
       "#define ARMV8\n"
       "#define L1_CODE_SIZE\t32768\n"
@@ -1639,6 +1639,8 @@ else(NOT CMAKE_CROSSCOMPILING)
   unset (HAVE_VFP)
   unset (HAVE_VFPV3)
   unset (HAVE_VFPV4)
+  unset (HAVE_SVE)
+  unset (HAVE_SME)
   message(STATUS "Running getarch")
 
   # use the cmake binary w/ the -E param to run a shell command in a cross-platform way

@@ -7,6 +7,18 @@
 #include <stdlib.h>
 #include <inttypes.h>
 #include <math.h>
+
+#if defined(DYNAMIC_ARCH)
+#define COMBINE(a,b) a ## b
+#define COMBINE2(a,b) COMBINE(a,b)
+#define SGEMM_PREPROCESS_BASE sgemm_direct_sme1_preprocess
+#define SGEMM_PREPROCESS COMBINE2(SGEMM_PREPROCESS_BASE,TS)
+#define SGEMM_DIRECT2X2_BASE sgemm_direct_alpha_beta_sme1_2VLx2VL
+#define SGEMM_DIRECT2X2 COMBINE2(SGEMM_DIRECT2X2_BASE,TS)
+#else
+#define SGEMM_PREPROCESS sgemm_direct_sme1_preprocess
+#define SGEMM_DIRECT2X2 sgemm_direct_alpha_beta_sme1_2VLx2VL
+#endif
 #if defined(HAVE_SME)
 
 #if defined(__ARM_FEATURE_SME) && defined(__clang__) && __clang_major__ >= 16
@@ -14,8 +26,8 @@
 #endif
 
 /* Function prototypes */
-extern void sgemm_direct_sme1_preprocess(uint64_t nbr, uint64_t nbc,\
-                                  const float * restrict a, float *  a_mod) __asm__("sgemm_direct_sme1_preprocess");
+extern void SGEMM_PREPROCESS(uint64_t nbr, uint64_t nbc,\
+                                  const float * restrict a, float *  a_mod) ;
 
 /* Function Definitions */
 static uint64_t sve_cntw() {
@@ -261,8 +273,8 @@ void CNAME (BLASLONG N, BLASLONG K, float alpha, float * __restrict A, \
         /* Pre-process the left matrix to make it suitable for
            matrix sum of outer-product calculation
          */
-        sgemm_direct_sme1_preprocess(N, K, A, A_mod);
-        sgemm_direct_sme1_preprocess(N, K, B, B_mod);
+        SGEMM_PREPROCESS(N, K, A, A_mod);
+        SGEMM_PREPROCESS(N, K, B, B_mod);
         asm volatile("" : : :"p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7",
                          "p8", "p9", "p10", "p11", "p12", "p13", "p14", "p15",
                          "z0", "z1", "z2", "z3", "z4", "z5", "z6", "z7",

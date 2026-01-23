@@ -61,6 +61,11 @@ endif
 ifeq ($(CORE), ARMV9SME)
 CCOMMON_OPT += -march=armv9-a+sve2+sme
 FCOMMON_OPT += -march=armv9-a+sve2
+ifdef OS_WINDOWS
+ifeq ($(C_COMPILER), CLANG)
+CCOMMON_OPT += --aarch64-stack-hazard-size=0
+endif
+endif
 endif
 
 ifeq ($(CORE), CORTEXA53)
@@ -301,6 +306,20 @@ CCOMMON_OPT += -march=armv8.3-a
 ifneq ($(F_COMPILER), NAG)
 FCOMMON_OPT += -march=armv8.3-a
 endif
+endif
+
+ifeq ($(CORE), VORTEXM4)
+ifneq ($(C_COMPILER), GCC)
+ifeq ($(APPLECLANG),1)
+CCOMMON_OPT += -march=armv8.4-a+sme
+else
+CCOMMON_OPT += -march=armv8.4-a+sme
+override LDFLAGS += -lclang_rt_builtins-aarch64
+endif
+else
+CCOMMON_OPT += -march=armv8.4-a
+endif
+FCOMMON_OPT += -march=armv8.4-a
 endif
 
 ifeq (1, $(filter 1,$(GCCVERSIONGTEQ9) $(ISCLANG)))
