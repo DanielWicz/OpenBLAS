@@ -91,7 +91,7 @@
 	fcmpu	cr0, FZERO, ALPHA
 	bne-	cr0, LL(A1I1)
 
-	LDLONG  FLAG,    104(SP)
+	LDLONG  FLAG,    120(SP)
 	cmpwi   cr0, FLAG, 1
 	beq-   cr0, LL(A1I1)
 

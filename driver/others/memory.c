@@ -1636,7 +1636,7 @@ void DESTRUCTOR gotoblas_quit(void) {
 }
 
 #if defined(_MSC_VER) && !defined(__clang__)
-BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReserved)
+BOOL APIENTRY OpenBLASDllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReserved)
 {
   switch (ul_reason_for_call)
   {
@@ -1685,10 +1685,10 @@ static int on_process_term(void)
 #endif
 
 #ifdef _WIN64
-static const PIMAGE_TLS_CALLBACK dll_callback(HINSTANCE h, DWORD ul_reason_for_call, PVOID pv) = DllMain;
+static const PIMAGE_TLS_CALLBACK dll_callback(HINSTANCE h, DWORD ul_reason_for_call, PVOID pv) = OpenBLASDllMain;
 #pragma const_seg()
 #else
-static void (APIENTRY *dll_callback)(HINSTANCE h, DWORD ul_reason_for_call, PVOID pv) = DllMain;
+static void (APIENTRY *dll_callback)(HINSTANCE h, DWORD ul_reason_for_call, PVOID pv) = OpenBLASDllMain;
 #pragma data_seg()
 #endif
 
@@ -3508,7 +3508,7 @@ void DESTRUCTOR gotoblas_quit(void) {
 }
 
 #if defined(_MSC_VER) && !defined(__clang__)
-BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReserved)
+BOOL APIENTRY OpenBLASDllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReserved)
 {
   switch (ul_reason_for_call)
   {
@@ -3552,7 +3552,7 @@ static int on_process_term(void)
 #else
 #pragma data_seg(".CRT$XLB")
 #endif
-static void (APIENTRY *dll_callback)(HINSTANCE h, DWORD ul_reason_for_call, PVOID pv) = DllMain;
+static void (APIENTRY *dll_callback)(HINSTANCE h, DWORD ul_reason_for_call, PVOID pv) = OpenBLASDllMain;
 #ifdef _WIN64
 #pragma const_seg()
 #else
